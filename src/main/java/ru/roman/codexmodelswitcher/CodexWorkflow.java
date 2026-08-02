@@ -185,8 +185,8 @@ final class CodexWorkflow {
         if (tokenFile == null) {
             return "";
         }
-        return "export " + CodexServerStarter.AUTH_TOKEN_ENV
-                + "=\"$(/bin/cat " + shellQuote(tokenFile.toString()) + ")\" && ";
+        return CodexServerStarter.AUTH_TOKEN_ENV
+                + "=\"$(/bin/cat " + shellQuote(tokenFile.toString()) + ")\" ";
     }
 
     private static String remoteAuthOption() {
