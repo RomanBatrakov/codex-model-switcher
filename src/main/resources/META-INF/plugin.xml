@@ -1,0 +1,66 @@
+<idea-plugin>
+  <version>0.5.0</version>
+  <id>ru.roman.codexmodelswitcher</id>
+  <name>Codex Model Switcher</name>
+  <vendor email="roman@local" url="https://openai.com">Roman</vendor>
+
+  <idea-version since-build="262"/>
+  <depends>com.intellij.modules.platform</depends>
+  <depends>org.jetbrains.plugins.terminal</depends>
+
+  <description><![CDATA[
+    Changes the model and reasoning effort of all active Codex chats through the local Codex app server.
+    The plugin never sends keystrokes to the editor.
+  ]]></description>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <applicationService serviceImplementation="ru.roman.codexmodelswitcher.CodexModelSwitcherSettings"/>
+    <applicationService serviceImplementation="ru.roman.codexmodelswitcher.CodexAppServerClient"/>
+    <applicationService serviceImplementation="ru.roman.codexmodelswitcher.CodexServerStarter"/>
+    <applicationService serviceImplementation="ru.roman.codexmodelswitcher.CodexKeyboardShortcutService"/>
+    <postStartupActivity implementation="ru.roman.codexmodelswitcher.CodexKeyboardShortcutStartupActivity"/>
+    <toolWindow id="Codex Models"
+                anchor="right"
+                factoryClass="ru.roman.codexmodelswitcher.CodexModelToolWindowFactory"/>
+    <notificationGroup id="Codex Model Switcher" displayType="BALLOON" isLogByDefault="false"/>
+  </extensions>
+
+  <actions>
+    <action id="CodexModelSwitcher.StartServer"
+            class="ru.roman.codexmodelswitcher.StartCodexServerAction"
+            text="Codex: Start model switcher server"
+            description="Starts a local Codex app server on this Mac">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+    <action id="CodexModelSwitcher.OpenChat"
+            class="ru.roman.codexmodelswitcher.OpenCodexChatAction"
+            text="Codex: Choose and open chat"
+            description="Choose and open a saved Codex chat without changing the global model preset">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+    <action id="CodexModelSwitcher.TerraMedium"
+            class="ru.roman.codexmodelswitcher.TerraMediumAction"
+            text="Codex: All chats — Terra / Medium"
+            description="Set all active Codex chats to GPT-5.6 Terra with medium reasoning">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+    <action id="CodexModelSwitcher.TerraXHigh"
+            class="ru.roman.codexmodelswitcher.TerraXHighAction"
+            text="Codex: All chats — Terra / XHigh"
+            description="Set all active Codex chats to GPT-5.6 Terra with extra high reasoning">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+    <action id="CodexModelSwitcher.SolXHigh"
+            class="ru.roman.codexmodelswitcher.SolXHighAction"
+            text="Codex: All chats — Sol / XHigh"
+            description="Set all active Codex chats to GPT-5.6 Sol with extra high reasoning">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+    <action id="CodexModelSwitcher.LunaMax"
+            class="ru.roman.codexmodelswitcher.LunaMaxAction"
+            text="Codex: All chats — Luna / Max"
+            description="Set all active Codex chats to GPT-5.6 Luna with maximum reasoning">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+  </actions>
+</idea-plugin>

@@ -1,0 +1,53 @@
+package ru.roman.codexmodelswitcher;
+
+import com.google.gson.JsonObject;
+
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
+
+record CodexThread(String id, String name, String preview, long updatedAt) {
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("dd.MM HH:mm")
+            .withZone(ZoneId.systemDefault());
+
+    static CodexThread fromJson(JsonObject value) {
+        String id = value.get("id").getAsString();
+        String name = optionalString(value, "name");
+        String preview = optionalString(value, "preview");
+        long updatedAt = value.has("updatedAt") ? value.get("updatedAt").getAsLong() : 0L;
+        return new CodexThread(id, name, preview, updatedAt);
+    }
+
+    String displayName() {
+        String headline = name == null || name.isBlank() ? preview : name;
+        if (headline == null || headline.isBlank()) {
+            headline = "Чат без названия";
+        }
+        headline = headline.replaceAll("\\s+", " ").strip();
+        if (headline.length() > 82) {
+            headline = headline.substring(0, 79) + "...";
+        }
+        String timestamp = updatedAt == 0L ? "без даты" : TIME_FORMAT.format(Instant.ofEpochSecond(updatedAt));
+        return headline + "  —  " + timestamp;
+    }
+
+    boolean matchesSearch(String query) {
+        String normalizedQuery = query.toLowerCase(Locale.ROOT).strip();
+        return normalizedQuery.isEmpty()
+                || matches(name, normalizedQuery)
+                || matches(preview, normalizedQuery);
+    }
+
+    String shortId() {
+        return id.length() <= 8 ? id : id.substring(0, 8);
+    }
+
+    private static boolean matches(String value, String normalizedQuery) {
+        return value != null && value.toLowerCase(Locale.ROOT).contains(normalizedQuery);
+    }
+
+    private static String optionalString(JsonObject value, String name) {
+        return value.has(name) && !value.get(name).isJsonNull() ? value.get(name).getAsString() : null;
+    }
+}
