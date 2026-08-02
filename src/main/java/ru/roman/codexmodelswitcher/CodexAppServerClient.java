@@ -28,6 +28,8 @@ import java.util.function.Function;
 @Service(Service.Level.APP)
 public final class CodexAppServerClient implements Disposable {
     private static final int THREAD_PAGE_SIZE = 100;
+    private static final int MAX_THREAD_PAGES = 100;
+    private static final int MAX_THREAD_COUNT = THREAD_PAGE_SIZE * MAX_THREAD_PAGES;
     private static final int MAX_TEXT_MESSAGE_LENGTH = 1_048_576;
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(5);
 
@@ -65,7 +67,7 @@ public final class CodexAppServerClient implements Disposable {
     }
 
     public CompletableFuture<List<CodexThread>> listThreads() {
-        return listThreads(null, new ArrayList<>());
+        return listThreads(null, new ArrayList<>(), 0);
     }
 
     public CompletableFuture<Void> updateAllThreadSettings(ModelPreset preset) {
@@ -92,7 +94,15 @@ public final class CodexAppServerClient implements Disposable {
         });
     }
 
-    private CompletableFuture<List<CodexThread>> listThreads(String cursor, List<CodexThread> threads) {
+    private CompletableFuture<List<CodexThread>> listThreads(
+            String cursor,
+            List<CodexThread> threads,
+            int page
+    ) {
+        if (page >= MAX_THREAD_PAGES) {
+            return CompletableFuture.failedFuture(new IllegalStateException(
+                    "Список чатов превысил безопасный лимит размера."));
+        }
         JsonObject parameters = new JsonObject();
         parameters.addProperty("limit", THREAD_PAGE_SIZE);
         parameters.addProperty("sortDirection", "desc");
@@ -101,14 +111,34 @@ public final class CodexAppServerClient implements Disposable {
             parameters.addProperty("cursor", cursor);
         }
         return request("thread/list", parameters).thenCompose(result -> {
+            if (!result.has("data") || !result.get("data").isJsonArray()) {
+                return CompletableFuture.failedFuture(new IllegalStateException(
+                        "Codex app server returned an invalid thread list."));
+            }
             JsonArray data = result.getAsJsonArray("data");
             for (JsonElement element : data) {
-                threads.add(CodexThread.fromJson(element.getAsJsonObject()));
+                if (!element.isJsonObject()) {
+                    continue;
+                }
+                JsonObject threadJson = element.getAsJsonObject();
+                String threadId = optionalString(threadJson, "id");
+                if (CodexThread.isValidId(threadId)) {
+                    threads.add(CodexThread.fromJson(threadJson));
+                }
+                if (threads.size() > MAX_THREAD_COUNT) {
+                    return CompletableFuture.failedFuture(new IllegalStateException(
+                            "Список чатов превысил безопасный лимит размера."));
+                }
             }
             String nextCursor = optionalString(result, "nextCursor");
-            return nextCursor == null
-                    ? CompletableFuture.completedFuture(threads)
-                    : listThreads(nextCursor, threads);
+            if (nextCursor == null) {
+                return CompletableFuture.completedFuture(threads);
+            }
+            if (threads.size() >= MAX_THREAD_COUNT) {
+                return CompletableFuture.failedFuture(new IllegalStateException(
+                        "Список чатов превысил безопасный лимит размера."));
+            }
+            return listThreads(nextCursor, threads, page + 1);
         });
     }
 
@@ -138,7 +168,14 @@ public final class CodexAppServerClient implements Disposable {
     }
 
     private static String optionalString(JsonObject value, String name) {
-        return value.has(name) && !value.get(name).isJsonNull() ? value.get(name).getAsString() : null;
+        if (!value.has(name) || value.get(name).isJsonNull() || !value.get(name).isJsonPrimitive()) {
+            return null;
+        }
+        try {
+            return value.get(name).getAsString();
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private static boolean isThreadNotFound(Throwable error) {
@@ -282,7 +319,9 @@ public final class CodexAppServerClient implements Disposable {
             return;
         }
         if ("thread/started".equals(method)) {
-            liveThreadIds.add(threadId);
+            if (CodexThread.isValidId(threadId) && liveThreadIds.size() < MAX_THREAD_COUNT) {
+                liveThreadIds.add(threadId);
+            }
         } else if ("thread/closed".equals(method)
                 || "thread/deleted".equals(method)
                 || "thread/archived".equals(method)) {
