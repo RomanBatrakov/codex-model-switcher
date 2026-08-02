@@ -138,8 +138,9 @@ final class CodexWorkflow {
         try {
             CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
             String directory = project.getBasePath() == null ? System.getProperty("user.dir") : project.getBasePath();
-            String command = shellQuote(codexExecutable().toString())
+            String command = authEnvironmentPrefix() + shellQuote(codexExecutable().toString())
                     + " --remote " + shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
+                    + remoteAuthOption()
                     + " resume " + shellQuote(thread.id());
             ShellTerminalWidget terminal = TerminalView.getInstance(project)
                     .createLocalShellWidget(directory, "Codex — " + thread.shortId(), true, true);
@@ -154,8 +155,9 @@ final class CodexWorkflow {
             CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
             ModelPreset.requireModel(preset.model());
             ModelPreset.requireEffort(preset.effort());
-            String command = shellQuote(codexExecutable().toString())
+            String command = authEnvironmentPrefix() + shellQuote(codexExecutable().toString())
                     + " --remote " + shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
+                    + remoteAuthOption()
                     + " --model " + shellQuote(preset.model())
                     + " -c " + shellQuote("model_reasoning_effort=\"" + preset.effort() + "\"");
             ShellTerminalWidget terminal = TerminalView.getInstance(project)
@@ -176,6 +178,21 @@ final class CodexWorkflow {
 
     private static String shellQuote(String value) {
         return "'" + value.replace("'", "'\"'\"'") + "'";
+    }
+
+    private static String authEnvironmentPrefix() {
+        Path tokenFile = CodexServerStarter.getInstance().authTokenFile();
+        if (tokenFile == null) {
+            return "";
+        }
+        return "export " + CodexServerStarter.AUTH_TOKEN_ENV
+                + "=\"$(/bin/cat " + shellQuote(tokenFile.toString()) + ")\" && ";
+    }
+
+    private static String remoteAuthOption() {
+        return CodexServerStarter.getInstance().authTokenFile() == null
+                ? ""
+                : " --remote-auth-token-env " + CodexServerStarter.AUTH_TOKEN_ENV;
     }
 
     private static String userMessage(Throwable error) {

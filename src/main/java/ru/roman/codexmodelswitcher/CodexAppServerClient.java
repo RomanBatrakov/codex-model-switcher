@@ -178,8 +178,13 @@ public final class CodexAppServerClient implements Disposable {
             }
             closeSocket();
             connectedEndpoint = endpoint;
-            connection = httpClient.newWebSocketBuilder()
-                    .connectTimeout(Duration.ofSeconds(1))
+            WebSocket.Builder webSocketBuilder = httpClient.newWebSocketBuilder()
+                    .connectTimeout(Duration.ofSeconds(1));
+            String authToken = CodexServerStarter.getInstance().authToken();
+            if (authToken != null && !authToken.isBlank()) {
+                webSocketBuilder.header("Authorization", "Bearer " + authToken);
+            }
+            connection = webSocketBuilder
                     .buildAsync(endpointUri, new ServerListener())
                     .thenCompose(newSocket -> {
                         socket = newSocket;
