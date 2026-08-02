@@ -33,7 +33,7 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
     }
 
     public void setServerUrl(String serverUrl) {
-        data.serverUrl = serverUrl;
+        data.serverUrl = CodexServerEndpoint.normalizeOrDefault(serverUrl);
     }
 
     public String model(ModelPreset.PresetId presetId) {
@@ -64,25 +64,27 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
     }
 
     public void updatePreset(ModelPreset.PresetId presetId, String model, String effort, String shortcut) {
+        String normalizedModel = ModelPreset.requireModel(model);
+        String normalizedEffort = ModelPreset.requireEffort(effort);
         switch (presetId) {
             case TERRA_MEDIUM -> {
-                data.terraMediumModel = model;
-                data.terraMediumEffort = effort;
+                data.terraMediumModel = normalizedModel;
+                data.terraMediumEffort = normalizedEffort;
                 data.terraMediumShortcut = shortcut;
             }
             case TERRA_XHIGH -> {
-                data.terraXHighModel = model;
-                data.terraXHighEffort = effort;
+                data.terraXHighModel = normalizedModel;
+                data.terraXHighEffort = normalizedEffort;
                 data.terraXHighShortcut = shortcut;
             }
             case SOL_XHIGH -> {
-                data.solXHighModel = model;
-                data.solXHighEffort = effort;
+                data.solXHighModel = normalizedModel;
+                data.solXHighEffort = normalizedEffort;
                 data.solXHighShortcut = shortcut;
             }
             case LUNA_MAX -> {
-                data.lunaMaxModel = model;
-                data.lunaMaxEffort = effort;
+                data.lunaMaxModel = normalizedModel;
+                data.lunaMaxEffort = normalizedEffort;
                 data.lunaMaxShortcut = shortcut;
             }
         }
@@ -117,40 +119,40 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
     }
 
     private void normalizeData() {
-        if (data.serverUrl == null || data.serverUrl.isBlank()) {
+        if (!CodexServerEndpoint.isValid(data.serverUrl)) {
             data.serverUrl = Data.DEFAULT_SERVER_URL;
         }
-        if (data.terraMediumModel == null || data.terraMediumModel.isBlank()) {
+        if (!ModelPreset.isValidModel(data.terraMediumModel)) {
             data.terraMediumModel = "gpt-5.6-terra";
         }
-        if (data.terraMediumEffort == null || data.terraMediumEffort.isBlank()) {
+        if (!ModelPreset.isValidEffort(data.terraMediumEffort)) {
             data.terraMediumEffort = "medium";
         }
         if (data.terraMediumShortcut == null || data.terraMediumShortcut.isBlank()) {
             data.terraMediumShortcut = "1";
         }
-        if (data.terraXHighModel == null || data.terraXHighModel.isBlank()) {
+        if (!ModelPreset.isValidModel(data.terraXHighModel)) {
             data.terraXHighModel = "gpt-5.6-terra";
         }
-        if (data.terraXHighEffort == null || data.terraXHighEffort.isBlank()) {
+        if (!ModelPreset.isValidEffort(data.terraXHighEffort)) {
             data.terraXHighEffort = "xhigh";
         }
         if (data.terraXHighShortcut == null || data.terraXHighShortcut.isBlank()) {
             data.terraXHighShortcut = "2";
         }
-        if (data.solXHighModel == null || data.solXHighModel.isBlank()) {
+        if (!ModelPreset.isValidModel(data.solXHighModel)) {
             data.solXHighModel = "gpt-5.6-sol";
         }
-        if (data.solXHighEffort == null || data.solXHighEffort.isBlank()) {
+        if (!ModelPreset.isValidEffort(data.solXHighEffort)) {
             data.solXHighEffort = "xhigh";
         }
         if (data.solXHighShortcut == null || data.solXHighShortcut.isBlank()) {
             data.solXHighShortcut = "3";
         }
-        if (data.lunaMaxModel == null || data.lunaMaxModel.isBlank()) {
+        if (!ModelPreset.isValidModel(data.lunaMaxModel)) {
             data.lunaMaxModel = "gpt-5.6-luna";
         }
-        if (data.lunaMaxEffort == null || data.lunaMaxEffort.isBlank()) {
+        if (!ModelPreset.isValidEffort(data.lunaMaxEffort)) {
             data.lunaMaxEffort = "max";
         }
         if (data.lunaMaxShortcut == null || data.lunaMaxShortcut.isBlank()) {
@@ -162,7 +164,7 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
     }
 
     public static final class Data {
-        static final String DEFAULT_SERVER_URL = "ws://127.0.0.1:4500";
+        static final String DEFAULT_SERVER_URL = CodexServerEndpoint.DEFAULT_URL;
 
         public String serverUrl = DEFAULT_SERVER_URL;
         public String terraMediumModel = "gpt-5.6-terra";

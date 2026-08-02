@@ -109,18 +109,26 @@ final class CodexSettingsDialog extends DialogWrapper {
     }
 
     private String validateFields() {
-        if (serverUrlField.getText().trim().isEmpty()
-                || !(serverUrlField.getText().trim().startsWith("ws://")
-                || serverUrlField.getText().trim().startsWith("wss://"))) {
-            return "Адрес должен начинаться с ws:// или wss://.";
+        String serverUrl = serverUrlField.getText().trim();
+        if (!CodexServerEndpoint.isValid(serverUrl)) {
+            try {
+                CodexServerEndpoint.requireValid(serverUrl);
+            } catch (IllegalArgumentException error) {
+                return error.getMessage();
+            }
+            return "Адрес app-server некорректен.";
         }
         Set<String> shortcuts = new HashSet<>();
         for (PresetFields fields : presetFields) {
-            if (fields.modelField.getText().trim().isEmpty()) {
-                return "Модель для «" + fields.presetId.label() + "» не может быть пустой.";
+            String model = fields.modelField.getText().trim();
+            String modelError = ModelPreset.validateModel(model);
+            if (modelError != null) {
+                return "Модель для «" + fields.presetId.label() + "» " + modelError;
             }
-            if (fields.effortField.getText().trim().isEmpty()) {
-                return "Уровень reasoning для «" + fields.presetId.label() + "» не может быть пустым.";
+            String effort = fields.effortField.getText().trim();
+            String effortError = ModelPreset.validateEffort(effort);
+            if (effortError != null) {
+                return "Уровень reasoning для «" + fields.presetId.label() + "» " + effortError;
             }
             String shortcut = fields.shortcutField.getText().trim();
             if (!shortcut.matches("[1-9]")) {

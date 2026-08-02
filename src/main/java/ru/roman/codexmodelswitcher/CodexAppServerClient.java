@@ -28,6 +28,8 @@ import java.util.function.Function;
 @Service(Service.Level.APP)
 public final class CodexAppServerClient implements Disposable {
     private static final int THREAD_PAGE_SIZE = 100;
+    private static final int MAX_TEXT_MESSAGE_LENGTH = 1_048_576;
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(5);
 
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final AtomicLong requestIds = new AtomicLong();
@@ -67,6 +69,15 @@ public final class CodexAppServerClient implements Disposable {
     }
 
     public CompletableFuture<Void> updateAllThreadSettings(ModelPreset preset) {
+        if (preset == null) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Пресет модели не задан."));
+        }
+        try {
+            ModelPreset.requireModel(preset.model());
+            ModelPreset.requireEffort(preset.effort());
+        } catch (IllegalArgumentException error) {
+            return CompletableFuture.failedFuture(error);
+        }
         return listThreads().thenCompose(threads -> {
             Set<String> listedThreadIds = new HashSet<>();
             for (CodexThread thread : threads) {
@@ -151,6 +162,12 @@ public final class CodexAppServerClient implements Disposable {
 
     private CompletableFuture<Void> ensureConnected() {
         String endpoint = CodexModelSwitcherSettings.getInstance().serverUrl();
+        final URI endpointUri;
+        try {
+            endpointUri = CodexServerEndpoint.requireValid(endpoint);
+        } catch (IllegalArgumentException error) {
+            return CompletableFuture.failedFuture(error);
+        }
         synchronized (connectionLock) {
             if (socket != null && connection != null && connection.isDone() && !connection.isCompletedExceptionally()
                     && endpoint.equals(connectedEndpoint)) {
@@ -163,7 +180,7 @@ public final class CodexAppServerClient implements Disposable {
             connectedEndpoint = endpoint;
             connection = httpClient.newWebSocketBuilder()
                     .connectTimeout(Duration.ofSeconds(1))
-                    .buildAsync(URI.create(endpoint), new ServerListener())
+                    .buildAsync(endpointUri, new ServerListener())
                     .thenCompose(newSocket -> {
                         socket = newSocket;
                         JsonObject clientInfo = new JsonObject();
@@ -198,7 +215,10 @@ public final class CodexAppServerClient implements Disposable {
                 response.completeExceptionally(failure);
             }
         });
-        return response.orTimeout(5, java.util.concurrent.TimeUnit.SECONDS);
+        CompletableFuture<JsonObject> timedResponse = response.orTimeout(
+                REQUEST_TIMEOUT.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
+        timedResponse.whenComplete((ignored, failure) -> pendingRequests.remove(id, response));
+        return timedResponse;
     }
 
     private void processMessage(String text) {
@@ -214,7 +234,12 @@ public final class CodexAppServerClient implements Disposable {
         if (!message.has("id") || message.get("id").isJsonNull()) {
             return;
         }
-        long id = message.get("id").getAsLong();
+        final long id;
+        try {
+            id = message.get("id").getAsLong();
+        } catch (RuntimeException ignored) {
+            return;
+        }
         CompletableFuture<JsonObject> future = pendingRequests.remove(id);
         if (future == null) {
             return;
@@ -224,7 +249,13 @@ public final class CodexAppServerClient implements Disposable {
             return;
         }
         JsonElement result = message.get("result");
-        future.complete(result == null || result.isJsonNull() ? new JsonObject() : result.getAsJsonObject());
+        if (result == null || result.isJsonNull()) {
+            future.complete(new JsonObject());
+        } else if (result.isJsonObject()) {
+            future.complete(result.getAsJsonObject());
+        } else {
+            future.completeExceptionally(new IllegalStateException("Codex app server returned an invalid response."));
+        }
     }
 
     private void processNotification(JsonObject message) {
@@ -287,6 +318,12 @@ public final class CodexAppServerClient implements Disposable {
 
         @Override
         public CompletableFuture<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
+            if (data.length() > MAX_TEXT_MESSAGE_LENGTH - textBuffer.length()) {
+                textBuffer.setLength(0);
+                failPending(new IllegalStateException("Codex app server message is too large."));
+                webSocket.sendClose(1009, "Message too large");
+                return CompletableFuture.completedFuture(null);
+            }
             textBuffer.append(data);
             if (last) {
                 processMessage(textBuffer.toString());

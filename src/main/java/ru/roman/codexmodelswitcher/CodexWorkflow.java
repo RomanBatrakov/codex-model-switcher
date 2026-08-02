@@ -131,15 +131,16 @@ final class CodexWorkflow {
     }
 
     private static void openChatInTerminal(Project project, CodexThread thread) {
-        if (!thread.id().matches("[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}")) {
+        if (thread == null || !CodexThread.isValidId(thread.id())) {
             CodexNotifications.error(project, "Некорректный идентификатор чата", "Плагин не стал открывать чат с неизвестным идентификатором.");
             return;
         }
         try {
+            CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
             String directory = project.getBasePath() == null ? System.getProperty("user.dir") : project.getBasePath();
-            String command = shellQuote(codexExecutable())
+            String command = shellQuote(codexExecutable().toString())
                     + " --remote " + shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
-                    + " resume " + thread.id();
+                    + " resume " + shellQuote(thread.id());
             ShellTerminalWidget terminal = TerminalView.getInstance(project)
                     .createLocalShellWidget(directory, "Codex — " + thread.shortId(), true, true);
             terminal.executeCommand(command);
@@ -150,7 +151,10 @@ final class CodexWorkflow {
 
     private static void openNewChatInTerminal(Project project, String directory, ModelPreset preset) {
         try {
-            String command = shellQuote(codexExecutable())
+            CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
+            ModelPreset.requireModel(preset.model());
+            ModelPreset.requireEffort(preset.effort());
+            String command = shellQuote(codexExecutable().toString())
                     + " --remote " + shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
                     + " --model " + shellQuote(preset.model())
                     + " -c " + shellQuote("model_reasoning_effort=\"" + preset.effort() + "\"");
@@ -162,12 +166,12 @@ final class CodexWorkflow {
         }
     }
 
-    private static String codexExecutable() {
+    private static Path codexExecutable() throws IOException {
         return CODEX_LOCATIONS.stream()
-                .filter(Files::isExecutable)
-                .map(Path::toString)
+                .filter(path -> Files.isRegularFile(path) && Files.isExecutable(path))
                 .findFirst()
-                .orElse("codex");
+                .orElseThrow(() -> new IOException(
+                        "Не найден безопасный исполняемый файл Codex в /opt/homebrew/bin/codex или /usr/local/bin/codex."));
     }
 
     private static String shellQuote(String value) {
@@ -177,7 +181,11 @@ final class CodexWorkflow {
     private static String userMessage(Throwable error) {
         Throwable current = error instanceof CompletionException && error.getCause() != null ? error.getCause() : error;
         String message = current.getMessage();
-        return message == null || message.isBlank() ? current.getClass().getSimpleName() : message;
+        if (message == null || message.isBlank()) {
+            return current.getClass().getSimpleName();
+        }
+        String sanitized = message.replaceAll("[\\r\\n\\t]+", " ").trim();
+        return sanitized.length() <= 500 ? sanitized : sanitized.substring(0, 500) + "…";
     }
 
     private static String serverErrorMessage(Throwable error) {

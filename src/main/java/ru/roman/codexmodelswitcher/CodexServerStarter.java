@@ -26,6 +26,8 @@ public final class CodexServerStarter implements Disposable {
     }
 
     public synchronized boolean start(Project project) throws IOException {
+        CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
+        Path codexExecutable = codexExecutable();
         if (serverTerminal != null) {
             try {
                 serverTerminal.close();
@@ -36,18 +38,18 @@ public final class CodexServerStarter implements Disposable {
         }
         String directory = project.getBasePath() == null ? System.getProperty("user.dir") : project.getBasePath();
         serverTerminal = TerminalView.getInstance(project).createLocalShellWidget(directory, "Codex Server");
-        serverTerminal.executeCommand(shellQuote(codexExecutable())
+        serverTerminal.executeCommand(shellQuote(codexExecutable.toString())
                 + " app-server --listen "
                 + shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl()));
         return true;
     }
 
-    private static String codexExecutable() {
+    private static Path codexExecutable() throws IOException {
         return CODEX_LOCATIONS.stream()
-                .filter(Files::isExecutable)
-                .map(Path::toString)
+                .filter(path -> Files.isRegularFile(path) && Files.isExecutable(path))
                 .findFirst()
-                .orElse("codex");
+                .orElseThrow(() -> new IOException(
+                        "Не найден безопасный исполняемый файл Codex в /opt/homebrew/bin/codex или /usr/local/bin/codex."));
     }
 
     private static String shellQuote(String value) {

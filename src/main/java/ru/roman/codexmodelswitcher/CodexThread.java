@@ -8,6 +8,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 record CodexThread(String id, String name, String preview, long updatedAt) {
+    private static final String UUID_PATTERN =
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("dd.MM HH:mm")
             .withZone(ZoneId.systemDefault());
 
@@ -41,6 +43,10 @@ record CodexThread(String id, String name, String preview, long updatedAt) {
 
     String shortId() {
         return id.length() <= 8 ? id : id.substring(0, 8);
+    }
+
+    static boolean isValidId(String value) {
+        return value != null && value.matches(UUID_PATTERN);
     }
 
     private static boolean matches(String value, String normalizedQuery) {
