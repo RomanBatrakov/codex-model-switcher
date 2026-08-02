@@ -38,7 +38,13 @@ public final class CodexServerStarter implements Disposable {
         CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
         Path codexExecutable = codexExecutable();
         Path newAuthTokenFile = createAuthTokenFile();
-        String newAuthToken = Files.readString(newAuthTokenFile, StandardCharsets.UTF_8).trim();
+        String newAuthToken;
+        try {
+            newAuthToken = Files.readString(newAuthTokenFile, StandardCharsets.UTF_8).trim();
+        } catch (IOException | RuntimeException error) {
+            deleteQuietly(newAuthTokenFile);
+            throw error;
+        }
         if (serverTerminal != null) {
             try {
                 serverTerminal.close();
@@ -50,14 +56,27 @@ public final class CodexServerStarter implements Disposable {
         deleteAuthTokenFile();
         authTokenFile = newAuthTokenFile;
         authToken = newAuthToken;
-        String directory = project.getBasePath() == null ? System.getProperty("user.dir") : project.getBasePath();
-        serverTerminal = TerminalView.getInstance(project).createLocalShellWidget(directory, "Codex Server");
-        serverTerminal.executeCommand(shellQuote(codexExecutable.toString())
-                + " app-server --listen "
-                + shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
-                + " --ws-auth capability-token --ws-token-file "
-                + shellQuote(authTokenFile.toString()));
-        return true;
+        try {
+            String directory = project.getBasePath() == null ? System.getProperty("user.dir") : project.getBasePath();
+            serverTerminal = TerminalView.getInstance(project).createLocalShellWidget(directory, "Codex Server");
+            serverTerminal.executeCommand(shellQuote(codexExecutable.toString())
+                    + " app-server --listen "
+                    + shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
+                    + " --ws-auth capability-token --ws-token-file "
+                    + shellQuote(authTokenFile.toString()));
+            return true;
+        } catch (IOException | RuntimeException error) {
+            if (serverTerminal != null) {
+                try {
+                    serverTerminal.close();
+                } catch (RuntimeException ignored) {
+                    // The terminal may already have been closed by the IDE.
+                }
+                serverTerminal = null;
+            }
+            deleteAuthTokenFile();
+            throw error;
+        }
     }
 
     synchronized String authToken() {
@@ -101,6 +120,15 @@ public final class CodexServerStarter implements Disposable {
         }
         authTokenFile = null;
         authToken = null;
+    }
+
+    private static void deleteQuietly(Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException ignored) {
+            // A newly-created owner-only token file is safe to leave for the
+            // operating system's temporary-file cleanup if deletion races.
+        }
     }
 
     private static Path codexExecutable() throws IOException {
