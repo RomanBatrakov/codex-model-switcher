@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Base64;
 import java.util.EnumSet;
+import java.util.Set;
 import java.security.SecureRandom;
 
 @Service(Service.Level.APP)
@@ -80,11 +81,78 @@ public final class CodexServerStarter implements Disposable {
     }
 
     synchronized String authToken() {
+        restoreTokenFromRunningServer();
         return authToken;
     }
 
     synchronized Path authTokenFile() {
+        restoreTokenFromRunningServer();
         return authTokenFile;
+    }
+
+    /**
+     * The app-server can outlive an IntelliJ plugin reload. In that case the
+     * in-memory token is gone, while the local Codex process still advertises
+     * its owner-only token file in its command line. Recovering that token
+     * keeps an existing localhost server usable after an IDE/plugin restart.
+     */
+    private void restoreTokenFromRunningServer() {
+        if (authToken != null && authTokenFile != null && Files.isRegularFile(authTokenFile)) {
+            return;
+        }
+        String endpoint = CodexModelSwitcherSettings.getInstance().serverUrl();
+        String listenMarker = "--listen " + endpoint;
+        try {
+            for (ProcessHandle process : ProcessHandle.allProcesses().toList()) {
+                String commandLine = process.info().commandLine().orElse("");
+                if (!commandLine.contains("app-server")
+                        || !commandLine.contains("--ws-auth capability-token")
+                        || !commandLine.contains(listenMarker)) {
+                    continue;
+                }
+                Path tokenFile = tokenFileFromCommandLine(commandLine);
+                if (tokenFile == null || !isOwnerOnlyTokenFile(tokenFile)) {
+                    continue;
+                }
+                String token = Files.readString(tokenFile, StandardCharsets.UTF_8).trim();
+                if (token.matches("[A-Za-z0-9_-]{32,256}")) {
+                    authTokenFile = tokenFile;
+                    authToken = token;
+                    return;
+                }
+            }
+        } catch (IOException | RuntimeException ignored) {
+            // If process inspection is unavailable, the normal server-start
+            // path still reports the connection error to the user.
+        }
+    }
+
+    private static Path tokenFileFromCommandLine(String commandLine) {
+        String[] arguments = commandLine.trim().split("\\s+");
+        for (int index = 0; index + 1 < arguments.length; index++) {
+            if ("--ws-token-file".equals(arguments[index])) {
+                try {
+                    Path path = Path.of(arguments[index + 1]);
+                    return path.isAbsolute() ? path : null;
+                } catch (RuntimeException ignored) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean isOwnerOnlyTokenFile(Path tokenFile) throws IOException {
+        if (!Files.isRegularFile(tokenFile) || !Files.isReadable(tokenFile) || Files.size(tokenFile) > 256) {
+            return false;
+        }
+        try {
+            Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(tokenFile);
+            return permissions.stream().noneMatch(permission -> permission.name().startsWith("GROUP_")
+                    || permission.name().startsWith("OTHERS_"));
+        } catch (UnsupportedOperationException ignored) {
+            return true;
+        }
     }
 
     private static Path createAuthTokenFile() throws IOException {

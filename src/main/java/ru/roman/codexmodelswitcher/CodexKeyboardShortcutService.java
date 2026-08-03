@@ -6,6 +6,7 @@ import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.project.ProjectUtil;
 
 import javax.swing.JComponent;
@@ -48,9 +49,7 @@ public final class CodexKeyboardShortcutService implements Disposable {
             return false;
         }
         int modifiers = event.getModifiersEx();
-        int forbiddenModifiers = InputEvent.SHIFT_DOWN_MASK
-                | InputEvent.ALT_DOWN_MASK
-                | InputEvent.META_DOWN_MASK;
+        int forbiddenModifiers = InputEvent.SHIFT_DOWN_MASK | InputEvent.ALT_DOWN_MASK | InputEvent.META_DOWN_MASK;
         if ((modifiers & InputEvent.CTRL_DOWN_MASK) == 0 || (modifiers & forbiddenModifiers) != 0) {
             return false;
         }
@@ -132,6 +131,10 @@ public final class CodexKeyboardShortcutService implements Disposable {
             }
         } catch (RuntimeException ignored) {
             // Some transient terminal components do not expose a data context.
+        }
+        Project[] openProjects = ProjectManager.getInstance().getOpenProjects();
+        if (openProjects.length == 1 && !openProjects[0].isDisposed()) {
+            return openProjects[0];
         }
         return null;
     }

@@ -1,5 +1,5 @@
 <idea-plugin>
-  <version>0.5.0</version>
+  <version>0.5.1</version>
   <id>ru.roman.codexmodelswitcher</id>
   <name>Codex Model Switcher</name>
   <vendor email="roman@local" url="https://openai.com">Roman</vendor>

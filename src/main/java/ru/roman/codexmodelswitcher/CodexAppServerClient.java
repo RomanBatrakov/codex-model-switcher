@@ -1,6 +1,5 @@
 package ru.roman.codexmodelswitcher;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -8,12 +7,19 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.Service;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -27,17 +33,21 @@ import java.util.function.Function;
 
 @Service(Service.Level.APP)
 public final class CodexAppServerClient implements Disposable {
-    private static final int THREAD_PAGE_SIZE = 100;
-    private static final int MAX_THREAD_PAGES = 100;
-    private static final int MAX_THREAD_COUNT = THREAD_PAGE_SIZE * MAX_THREAD_PAGES;
+    private static final int MAX_THREAD_COUNT = 10_000;
     private static final int MAX_TEXT_MESSAGE_LENGTH = 1_048_576;
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(5);
+    private static final int MAX_SESSION_FILES = 10_000;
+    private static final int MAX_SESSION_SCAN_LINES = 96;
+    private static final int MAX_SESSION_SCAN_CHARS = 512 * 1024;
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
 
     private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final AtomicLong requestIds = new AtomicLong();
     private final ConcurrentMap<Long, CompletableFuture<JsonObject>> pendingRequests = new ConcurrentHashMap<>();
     private final Set<String> liveThreadIds = ConcurrentHashMap.newKeySet();
     private final Object connectionLock = new Object();
+    private final Object modelUpdateLock = new Object();
+
+    private CompletableFuture<Void> modelUpdateTail = CompletableFuture.completedFuture(null);
 
     private volatile WebSocket socket;
     private volatile CompletableFuture<Void> connection;
@@ -58,16 +68,17 @@ public final class CodexAppServerClient implements Disposable {
 
     public boolean isConnected() {
         CompletableFuture<Void> currentConnection = connection;
-        return socket != null
-                && CodexModelSwitcherSettings.getInstance().serverUrl().equals(connectedEndpoint)
-                && currentConnection != null
-                && currentConnection.isDone()
-                && !currentConnection.isCompletedExceptionally()
-                && !currentConnection.isCancelled();
+        return socket != null && CodexModelSwitcherSettings.getInstance().serverUrl().equals(connectedEndpoint) &&
+            currentConnection != null && currentConnection.isDone() && !currentConnection.isCompletedExceptionally() &&
+            !currentConnection.isCancelled();
     }
 
     public CompletableFuture<List<CodexThread>> listThreads() {
-        return listThreads(null, new ArrayList<>(), 0);
+        // The app-server's historical thread/list endpoint can become very slow
+        // when ~/.codex/sessions contains large transcripts. The picker only
+        // needs the stable id and a short preview, which are available in the
+        // first records of each local JSONL session file.
+        return CompletableFuture.supplyAsync(this::listThreadsFromDisk);
     }
 
     public CompletableFuture<Void> updateAllThreadSettings(ModelPreset preset) {
@@ -80,83 +91,211 @@ public final class CodexAppServerClient implements Disposable {
         } catch (IllegalArgumentException error) {
             return CompletableFuture.failedFuture(error);
         }
-        return listThreads().thenCompose(threads -> {
-            Set<String> listedThreadIds = new HashSet<>();
-            for (CodexThread thread : threads) {
-                listedThreadIds.add(thread.id());
+        synchronized (modelUpdateLock) {
+            // A double click used to start two request chains on the same
+            // socket. Keep model changes ordered and let the next click run
+            // even when the previous one failed.
+            modelUpdateTail = modelUpdateTail
+                    .handle((ignored, error) -> null)
+                    .thenCompose(ignored -> updateAllThreadSettingsNow(preset));
+            return modelUpdateTail;
+        }
+    }
+
+    private CompletableFuture<Void> updateAllThreadSettingsNow(ModelPreset preset) {
+        // Refresh the plugin's own connection before a model update. The TUI
+        // may keep the app server busy for a while, and a stale plugin socket
+        // can otherwise wait until its short request deadline expires.
+        return reconnect().thenCompose(ignored -> listLoadedThreadIds()).thenCompose(loadedThreadIds -> {
+            // Only loaded threads can accept thread/settings/update. Do not call
+            // the historical thread/list endpoint here: it scans all transcripts
+            // and can time out even while the active-chat endpoint is healthy.
+            Set<String> targetThreadIds = new HashSet<>();
+            targetThreadIds.addAll(loadedThreadIds);
+            targetThreadIds.addAll(liveThreadIds);
+            String lastThreadId = CodexModelSwitcherSettings.getInstance().lastThreadId();
+            if (CodexThread.isValidId(lastThreadId)) {
+                targetThreadIds.add(lastThreadId);
             }
-            for (String liveThreadId : liveThreadIds) {
-                if (listedThreadIds.add(liveThreadId)) {
-                    threads.add(new CodexThread(liveThreadId, null, null, 0L));
-                }
+            if (targetThreadIds.isEmpty()) {
+                return CompletableFuture.failedFuture(new IllegalStateException(
+                        "Сервер Codex не видит активных чатов. Сначала откройте чат через Codex или кнопку «Новый чат»."));
             }
-            return updateThreadSettings(threads, preset, 0);
+            return updateThreadSettings(new ArrayList<>(targetThreadIds), preset, 0);
         });
     }
 
-    private CompletableFuture<List<CodexThread>> listThreads(
-            String cursor,
-            List<CodexThread> threads,
-            int page
-    ) {
-        if (page >= MAX_THREAD_PAGES) {
-            return CompletableFuture.failedFuture(new IllegalStateException(
-                    "Список чатов превысил безопасный лимит размера."));
-        }
+    /**
+     * Returns threads currently loaded by the app server. The regular
+     * {@code thread/list} endpoint contains historical records as well, most
+     * of which cannot accept settings updates until they are loaded. This
+     * endpoint is what makes switching work for a Codex CLI chat that was
+     * opened outside the plugin or before the plugin connected.
+     */
+    private CompletableFuture<List<String>> listLoadedThreadIds() {
         JsonObject parameters = new JsonObject();
-        parameters.addProperty("limit", THREAD_PAGE_SIZE);
-        parameters.addProperty("sortDirection", "desc");
-        parameters.addProperty("sortKey", "updated_at");
-        if (cursor != null) {
-            parameters.addProperty("cursor", cursor);
-        }
-        return request("thread/list", parameters).thenCompose(result -> {
+        parameters.addProperty("limit", MAX_THREAD_COUNT);
+        return request("thread/loaded/list", parameters).thenApply(result -> {
             if (!result.has("data") || !result.get("data").isJsonArray()) {
-                return CompletableFuture.failedFuture(new IllegalStateException(
-                        "Codex app server returned an invalid thread list."));
+                throw new IllegalStateException("Codex app server returned an invalid loaded-thread list.");
             }
-            JsonArray data = result.getAsJsonArray("data");
-            for (JsonElement element : data) {
-                if (!element.isJsonObject()) {
+            List<String> loadedThreadIds = new ArrayList<>();
+            for (JsonElement element : result.getAsJsonArray("data")) {
+                if (!element.isJsonPrimitive()) {
                     continue;
                 }
-                JsonObject threadJson = element.getAsJsonObject();
-                String threadId = optionalString(threadJson, "id");
+                String threadId = element.getAsString();
                 if (CodexThread.isValidId(threadId)) {
-                    threads.add(CodexThread.fromJson(threadJson));
-                }
-                if (threads.size() > MAX_THREAD_COUNT) {
-                    return CompletableFuture.failedFuture(new IllegalStateException(
-                            "Список чатов превысил безопасный лимит размера."));
+                    loadedThreadIds.add(threadId);
                 }
             }
-            String nextCursor = optionalString(result, "nextCursor");
-            if (nextCursor == null) {
-                return CompletableFuture.completedFuture(threads);
-            }
-            if (threads.size() >= MAX_THREAD_COUNT) {
-                return CompletableFuture.failedFuture(new IllegalStateException(
-                        "Список чатов превысил безопасный лимит размера."));
-            }
-            return listThreads(nextCursor, threads, page + 1);
+            return loadedThreadIds;
         });
     }
 
-    private CompletableFuture<Void> updateThreadSettings(List<CodexThread> threads, ModelPreset preset, int index) {
-        if (index == threads.size()) {
+    private CompletableFuture<Void> updateThreadSettings(List<String> threadIds, ModelPreset preset, int index) {
+        if (index == threadIds.size()) {
             return CompletableFuture.completedFuture(null);
         }
-        return updateThreadSettings(threads.get(index).id(), preset)
-                .handle((ignored, error) -> {
-                    if (error == null) {
-                        return updateThreadSettings(threads, preset, index + 1);
+        return updateThreadSettings(threadIds.get(index), preset).handle((ignored, error) -> {
+            if (error == null) {
+                return updateThreadSettings(threadIds, preset, index + 1);
+            }
+            if (isThreadNotFound(error)) {
+                return updateThreadSettings(threadIds, preset, index + 1);
+            }
+            return CompletableFuture.<Void>failedFuture(unwrap(error));
+        }).thenCompose(Function.identity());
+    }
+
+    private List<CodexThread> listThreadsFromDisk() {
+        Path sessionsDirectory = codexSessionsDirectory();
+        if (!Files.isDirectory(sessionsDirectory)) {
+            return List.of();
+        }
+        Map<String, CodexThread> threadsById = new HashMap<>();
+        try (var paths = Files.walk(sessionsDirectory, 4)) {
+            paths.filter(path -> path.getFileName().toString().endsWith(".jsonl"))
+                 .limit(MAX_SESSION_FILES)
+                 .forEach(path -> readThreadFile(path).ifPresent(thread -> threadsById.put(thread.id(), thread)));
+        } catch (IOException error) {
+            throw new CompletionException("Не удалось прочитать локальный список чатов Codex.", error);
+        }
+        return threadsById.values()
+                          .stream()
+                          .sorted(Comparator.comparingLong(CodexThread::updatedAt)
+                                            .reversed()
+                                            .thenComparing(CodexThread::id, Comparator.reverseOrder()))
+                          .toList();
+    }
+
+    private static java.util.Optional<CodexThread> readThreadFile(Path path) {
+        JsonObject metadata = null;
+        try {
+            String preview = null;
+            String fallbackPreview = null;
+            int scannedCharacters = 0;
+            try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+                for (int lineNumber = 0; lineNumber < MAX_SESSION_SCAN_LINES; lineNumber++) {
+                    String line = reader.readLine();
+                    if (line == null) {
+                        break;
                     }
-                    if (isThreadNotFound(error)) {
-                        return updateThreadSettings(threads, preset, index + 1);
+                    scannedCharacters += line.length();
+                    if (scannedCharacters > MAX_SESSION_SCAN_CHARS) {
+                        break;
                     }
-                    return CompletableFuture.<Void>failedFuture(unwrap(error));
-                })
-                .thenCompose(Function.identity());
+                    JsonObject record;
+                    try {
+                        record = JsonParser.parseString(line).getAsJsonObject();
+                    } catch (RuntimeException ignored) {
+                        continue;
+                    }
+                    if (lineNumber == 0) {
+                        if (!"session_meta".equals(optionalString(record, "type"))) {
+                            return java.util.Optional.empty();
+                        }
+                        metadata = record;
+                        JsonObject payload = objectValue(metadata, "payload");
+                        String id = firstString(payload, "session_id", "id");
+                        if (!CodexThread.isValidId(id)) {
+                            return java.util.Optional.empty();
+                        }
+                    }
+                    String eventPreview = eventUserPreview(record);
+                    if (eventPreview != null) {
+                        preview = eventPreview;
+                        break;
+                    }
+                    if (fallbackPreview == null) {
+                        fallbackPreview = previewFromRecord(record);
+                    }
+                }
+            }
+            if (metadata == null) {
+                return java.util.Optional.empty();
+            }
+            JsonObject payload = objectValue(metadata, "payload");
+            String id = firstString(payload, "session_id", "id");
+            if (!CodexThread.isValidId(id)) {
+                return java.util.Optional.empty();
+            }
+            if (preview == null) {
+                preview = fallbackPreview;
+            }
+            long updatedAt = Files.getLastModifiedTime(path).toMillis() / 1000L;
+            return java.util.Optional.of(new CodexThread(id, null, preview, updatedAt));
+        } catch (IOException | RuntimeException ignored) {
+            return java.util.Optional.empty();
+        }
+    }
+
+    private static String previewFromRecord(JsonObject record) {
+        JsonObject payload = objectValue(record, "payload");
+        String eventType = optionalString(payload, "type");
+        if ("user_message".equals(eventType)) {
+            return firstString(payload, "message", "text");
+        }
+        if ("message".equals(eventType) && "user".equals(optionalString(payload, "role"))) {
+            if (payload.has("content") && payload.get("content").isJsonArray()) {
+                for (JsonElement element : payload.getAsJsonArray("content")) {
+                    if (element.isJsonObject()) {
+                        String text = firstString(element.getAsJsonObject(), "text", "input_text");
+                        if (text != null) {
+                            return text;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String eventUserPreview(JsonObject record) {
+        JsonObject payload = objectValue(record, "payload");
+        return "event_msg".equals(optionalString(record, "type")) &&
+            "user_message".equals(optionalString(payload, "type")) ? firstString(payload, "message", "text") : null;
+    }
+
+    private static Path codexSessionsDirectory() {
+        String codexHome = System.getenv("CODEX_HOME");
+        Path home = codexHome == null || codexHome.isBlank() ? Path.of(System.getProperty("user.home"), ".codex") :
+            Path.of(codexHome);
+        return home.resolve("sessions").normalize();
+    }
+
+    private static JsonObject objectValue(JsonObject value, String name) {
+        return value.has(name) && value.get(name).isJsonObject() ? value.getAsJsonObject(name) : new JsonObject();
+    }
+
+    private static String firstString(JsonObject value, String... names) {
+        for (String name : names) {
+            String result = optionalString(value, name);
+            if (result != null && !result.isBlank()) {
+                return result;
+            }
+        }
+        return null;
     }
 
     private CompletableFuture<Void> updateThreadSettings(String threadId, ModelPreset preset) {
@@ -186,8 +325,8 @@ public final class CodexAppServerClient implements Disposable {
 
     private static Throwable unwrap(Throwable error) {
         Throwable current = error;
-        while ((current instanceof CompletionException || current instanceof java.util.concurrent.ExecutionException)
-                && current.getCause() != null) {
+        while ((current instanceof CompletionException || current instanceof java.util.concurrent.ExecutionException) &&
+            current.getCause() != null) {
             current = current.getCause();
         }
         return current;
@@ -206,8 +345,8 @@ public final class CodexAppServerClient implements Disposable {
             return CompletableFuture.failedFuture(error);
         }
         synchronized (connectionLock) {
-            if (socket != null && connection != null && connection.isDone() && !connection.isCompletedExceptionally()
-                    && endpoint.equals(connectedEndpoint)) {
+            if (socket != null && connection != null && connection.isDone() && !connection.isCompletedExceptionally() &&
+                endpoint.equals(connectedEndpoint)) {
                 return connection;
             }
             if (connection != null && !connection.isDone() && endpoint.equals(connectedEndpoint)) {
@@ -215,28 +354,34 @@ public final class CodexAppServerClient implements Disposable {
             }
             closeSocket();
             connectedEndpoint = endpoint;
-            WebSocket.Builder webSocketBuilder = httpClient.newWebSocketBuilder()
-                    .connectTimeout(Duration.ofSeconds(1));
+            WebSocket.Builder webSocketBuilder = httpClient.newWebSocketBuilder().connectTimeout(Duration.ofSeconds(1));
             String authToken = CodexServerStarter.getInstance().authToken();
             if (authToken != null && !authToken.isBlank()) {
                 webSocketBuilder.header("Authorization", "Bearer " + authToken);
             }
-            connection = webSocketBuilder
-                    .buildAsync(endpointUri, new ServerListener())
-                    .thenCompose(newSocket -> {
-                        socket = newSocket;
-                        JsonObject clientInfo = new JsonObject();
-                        clientInfo.addProperty("name", "intellij-codex-model-switcher");
-                        clientInfo.addProperty("version", "0.5.0");
-                        JsonObject parameters = new JsonObject();
-                        parameters.add("clientInfo", clientInfo);
-                        JsonObject capabilities = new JsonObject();
-                        capabilities.addProperty("experimentalApi", true);
-                        parameters.add("capabilities", capabilities);
-                        return sendRequest("initialize", parameters).thenApply(ignored -> null);
-                    });
+            connection = webSocketBuilder.buildAsync(endpointUri, new ServerListener()).thenCompose(newSocket -> {
+                socket = newSocket;
+                JsonObject clientInfo = new JsonObject();
+                clientInfo.addProperty("name", "intellij-codex-model-switcher");
+                clientInfo.addProperty("version", "0.5.1");
+                JsonObject parameters = new JsonObject();
+                parameters.add("clientInfo", clientInfo);
+                JsonObject capabilities = new JsonObject();
+                capabilities.addProperty("experimentalApi", true);
+                parameters.add("capabilities", capabilities);
+                return sendRequest("initialize", parameters).thenApply(ignored -> null);
+            });
             return connection;
         }
+    }
+
+    private CompletableFuture<Void> reconnect() {
+        synchronized (connectionLock) {
+            closeSocket();
+            connection = null;
+            connectedEndpoint = null;
+        }
+        return ensureConnected();
     }
 
     private CompletableFuture<JsonObject> sendRequest(String method, JsonObject parameters) {
@@ -257,8 +402,8 @@ public final class CodexAppServerClient implements Disposable {
                 response.completeExceptionally(failure);
             }
         });
-        CompletableFuture<JsonObject> timedResponse = response.orTimeout(
-                REQUEST_TIMEOUT.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
+        CompletableFuture<JsonObject> timedResponse =
+            response.orTimeout(REQUEST_TIMEOUT.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
         timedResponse.whenComplete((ignored, failure) -> pendingRequests.remove(id, response));
         return timedResponse;
     }
@@ -302,15 +447,14 @@ public final class CodexAppServerClient implements Disposable {
 
     private void processNotification(JsonObject message) {
         String method = optionalString(message, "method");
-        JsonObject parameters = message.has("params") && message.get("params").isJsonObject()
-                ? message.getAsJsonObject("params")
-                : null;
+        JsonObject parameters =
+            message.has("params") && message.get("params").isJsonObject() ? message.getAsJsonObject("params") : null;
         if (parameters == null || method == null) {
             return;
         }
-        JsonObject thread = parameters.has("thread") && parameters.get("thread").isJsonObject()
-                ? parameters.getAsJsonObject("thread")
-                : parameters;
+        JsonObject thread =
+            parameters.has("thread") && parameters.get("thread").isJsonObject() ? parameters.getAsJsonObject("thread") :
+                parameters;
         String threadId = optionalString(thread, "id");
         if (threadId == null) {
             threadId = optionalString(parameters, "threadId");
@@ -322,9 +466,8 @@ public final class CodexAppServerClient implements Disposable {
             if (CodexThread.isValidId(threadId) && liveThreadIds.size() < MAX_THREAD_COUNT) {
                 liveThreadIds.add(threadId);
             }
-        } else if ("thread/closed".equals(method)
-                || "thread/deleted".equals(method)
-                || "thread/archived".equals(method)) {
+        } else if ("thread/closed".equals(method) || "thread/deleted".equals(method) ||
+            "thread/archived".equals(method)) {
             liveThreadIds.remove(threadId);
         }
     }

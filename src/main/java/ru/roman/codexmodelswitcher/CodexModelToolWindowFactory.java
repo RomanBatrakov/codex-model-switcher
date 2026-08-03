@@ -73,11 +73,9 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
 
     private static Color mix(Color first, Color second, float secondWeight) {
         float firstWeight = 1f - secondWeight;
-        return new Color(
-                Math.round(first.getRed() * firstWeight + second.getRed() * secondWeight),
-                Math.round(first.getGreen() * firstWeight + second.getGreen() * secondWeight),
-                Math.round(first.getBlue() * firstWeight + second.getBlue() * secondWeight)
-        );
+        return new Color(Math.round(first.getRed() * firstWeight + second.getRed() * secondWeight),
+            Math.round(first.getGreen() * firstWeight + second.getGreen() * secondWeight),
+            Math.round(first.getBlue() * firstWeight + second.getBlue() * secondWeight));
     }
 
     private static final class ToolWindowPanel extends JBPanel<ToolWindowPanel> implements Disposable {
@@ -109,16 +107,17 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             sections.setOpaque(false);
 
             addSection(sections, "ACTIONS", compact);
-            serverCard = new CardButton("Server", "Offline", "≡", SERVER_ACCENT,
-                    () -> {
-                        serverCard.setSubtitle("Starting…");
-                        CodexWorkflow.startServer(project);
-                    }, null, compact);
+            serverCard = new CardButton("Server", "Offline", "≡", SERVER_ACCENT, () -> {
+                serverCard.setSubtitle("Starting…");
+                CodexWorkflow.startServer(project);
+            }, null, compact);
             addCard(sections, serverCard, compact);
-            addCard(sections, new CardButton("New chat", null, "+", CHAT_ACCENT,
-                    () -> CodexWorkflow.startNewChat(project), null, compact), compact);
-            addCard(sections, new CardButton("Choose chat", null, "□", PICKER_ACCENT,
-                    () -> CodexWorkflow.chooseAndOpenChat(project), null, compact), compact);
+            addCard(sections,
+                new CardButton("New chat", null, "+", CHAT_ACCENT, () -> CodexWorkflow.startNewChat(project), null,
+                    compact), compact);
+            addCard(sections,
+                new CardButton("Choose chat", null, "□", PICKER_ACCENT, () -> CodexWorkflow.chooseAndOpenChat(project),
+                    null, compact), compact);
 
             addSection(sections, "MODELS", compact);
             addModelCard(sections, ModelPreset.PresetId.TERRA_MEDIUM, "T", TERRA_ACCENT, compact);
@@ -127,8 +126,9 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             addModelCard(sections, ModelPreset.PresetId.LUNA_MAX, "L", LUNA_ACCENT, compact);
 
             addSection(sections, "OPTIONS", compact);
-            addCard(sections, new CardButton("Settings", "presets and shortcuts", "⚙", PICKER_ACCENT,
-                    this::openSettings, null, compact), compact);
+            addCard(sections,
+                new CardButton("Settings", "presets and shortcuts", "⚙", PICKER_ACCENT, this::openSettings, null,
+                    compact), compact);
 
             JBScrollPane scrollPane = new JBScrollPane(sections);
             scrollPane.setBorder(null);
@@ -142,22 +142,12 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             repaint();
         }
 
-        private void addModelCard(
-                JPanel sections,
-                ModelPreset.PresetId presetId,
-                String glyph,
-                Color accent,
-                boolean compact
-        ) {
+        private void addModelCard(JPanel sections, ModelPreset.PresetId presetId, String glyph, Color accent,
+                                  boolean compact) {
             ModelPreset preset = ModelPreset.forId(presetId);
-            CardButton card = new CardButton(
-                    preset.label(),
-                    null,
-                    glyph,
-                    accent,
-                    () -> CodexWorkflow.switchModel(project, ModelPreset.forId(presetId)),
-                    CodexModelSwitcherSettings.getInstance().shortcut(presetId),
-                    compact);
+            CardButton card = new CardButton(preset.label(), null, glyph, accent,
+                () -> CodexWorkflow.switchModel(project, ModelPreset.forId(presetId)),
+                CodexModelSwitcherSettings.getInstance().shortcut(presetId), compact);
             modelCards.put(presetId, card);
             addCard(sections, card, compact);
         }
@@ -175,7 +165,11 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             boolean connected = CodexAppServerClient.getInstance().isConnected();
             serverCard.setSubtitle(connected ? "Online" : "Offline");
             for (Map.Entry<ModelPreset.PresetId, CardButton> entry : modelCards.entrySet()) {
-                entry.getValue().setEnabled(connected);
+                // A model action performs its own connection/readiness check and
+                // can start the local server when it is offline. Keeping the
+                // card enabled makes the action recoverable after an IDE/plugin
+                // restart instead of turning a transient status into a dead UI.
+                entry.getValue().setEnabled(true);
                 entry.getValue().setHighlighted(entry.getKey() == CodexWorkflow.lastPresetId());
             }
             serverCard.repaint();
@@ -196,15 +190,8 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
         private final boolean compact;
         private boolean selected;
 
-        private CardButton(
-                String title,
-                String subtitle,
-                String glyph,
-                Color accent,
-                Runnable action,
-                String shortcut,
-                boolean compact
-        ) {
+        private CardButton(String title, String subtitle, String glyph, Color accent, Runnable action, String shortcut,
+                           boolean compact) {
             super(title);
             this.title = title;
             this.subtitle = subtitle;
@@ -244,7 +231,8 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             Color normalBackground = uiColor("Button.background", new JBColor(0xE8E8E8, 0x3C3F41));
             Color background;
             if (!isEnabled()) {
-                background = uiColor("Button.disabledBackground", mix(normalBackground, uiColor("Panel.background", normalBackground), 0.45f));
+                background = uiColor("Button.disabledBackground",
+                    mix(normalBackground, uiColor("Panel.background", normalBackground), 0.45f));
             } else if (getModel().isPressed()) {
                 background = mix(normalBackground, accent, 0.25f);
             } else if (selected) {
@@ -269,9 +257,8 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             int glyphWidth = g.getFontMetrics().stringWidth(glyph);
             g.drawString(glyph, 19 - glyphWidth / 2, iconY + 13);
 
-            Color foreground = isEnabled()
-                    ? uiColor("Button.foreground", new JBColor(0x303030, 0xE8E8E8))
-                    : uiColor("Button.disabledForeground", new JBColor(0x8A8A8A, 0x777777));
+            Color foreground = isEnabled() ? uiColor("Button.foreground", new JBColor(0x303030, 0xE8E8E8)) :
+                uiColor("Button.disabledForeground", new JBColor(0x8A8A8A, 0x777777));
             g.setColor(foreground);
             g.setFont(getFont().deriveFont(Font.PLAIN, compact ? 12f : 13f));
             int textX = 40;
