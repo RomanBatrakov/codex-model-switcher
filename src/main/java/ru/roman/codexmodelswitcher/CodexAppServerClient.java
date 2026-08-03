@@ -363,7 +363,7 @@ public final class CodexAppServerClient implements Disposable {
                 socket = newSocket;
                 JsonObject clientInfo = new JsonObject();
                 clientInfo.addProperty("name", "intellij-codex-model-switcher");
-                clientInfo.addProperty("version", "0.5.1");
+                clientInfo.addProperty("version", "0.6.0");
                 JsonObject parameters = new JsonObject();
                 parameters.add("clientInfo", clientInfo);
                 JsonObject capabilities = new JsonObject();
