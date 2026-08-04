@@ -24,13 +24,13 @@ record CodexThread(String id, String name, String preview, long updatedAt) {
     String displayName() {
         String headline = name == null || name.isBlank() ? preview : name;
         if (headline == null || headline.isBlank()) {
-            headline = "Чат без названия";
+            headline = "Untitled chat";
         }
         headline = headline.replaceAll("\\s+", " ").strip();
         if (headline.length() > 82) {
             headline = headline.substring(0, 79) + "...";
         }
-        String timestamp = updatedAt == 0L ? "без даты" : TIME_FORMAT.format(Instant.ofEpochSecond(updatedAt));
+        String timestamp = updatedAt == 0L ? "no date" : TIME_FORMAT.format(Instant.ofEpochSecond(updatedAt));
         return headline + "  —  " + timestamp;
     }
 

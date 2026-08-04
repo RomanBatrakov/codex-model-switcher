@@ -83,7 +83,7 @@ public final class CodexAppServerClient implements Disposable {
 
     public CompletableFuture<Void> updateAllThreadSettings(ModelPreset preset) {
         if (preset == null) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("Пресет модели не задан."));
+            return CompletableFuture.failedFuture(new IllegalArgumentException("No model preset was specified."));
         }
         try {
             ModelPreset.requireModel(preset.model());
@@ -119,7 +119,7 @@ public final class CodexAppServerClient implements Disposable {
             }
             if (targetThreadIds.isEmpty()) {
                 return CompletableFuture.failedFuture(new IllegalStateException(
-                        "Сервер Codex не видит активных чатов. Сначала откройте чат через Codex или кнопку «Новый чат»."));
+                        "The Codex server has no active chats. Open a chat via Codex or the \"New chat\" button first."));
             }
             return updateThreadSettings(new ArrayList<>(targetThreadIds), preset, 0);
         });
@@ -179,7 +179,7 @@ public final class CodexAppServerClient implements Disposable {
                  .limit(MAX_SESSION_FILES)
                  .forEach(path -> readThreadFile(path).ifPresent(thread -> threadsById.put(thread.id(), thread)));
         } catch (IOException | java.io.UncheckedIOException error) {
-            throw new CompletionException("Не удалось прочитать локальный список чатов Codex.", error);
+            throw new CompletionException("Could not read the local Codex chat list.", error);
         }
         return threadsById.values()
                           .stream()

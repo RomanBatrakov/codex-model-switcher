@@ -32,26 +32,26 @@ record ModelPreset(PresetId id, String label, String model, String effort) {
 
     static String validateModel(String value) {
         if (value == null || value.isBlank()) {
-            return "не может быть пустой.";
+            return "must not be empty.";
         }
         String normalized = value.trim();
         if (normalized.length() > MAX_MODEL_LENGTH) {
-            return "слишком длинное имя (максимум " + MAX_MODEL_LENGTH + " символов).";
+            return "is too long (maximum " + MAX_MODEL_LENGTH + " characters).";
         }
         if (!normalized.matches("[A-Za-z0-9._:/~+@-]+")) {
-            return "содержит недопустимые символы.";
+            return "contains invalid characters.";
         }
         return null;
     }
 
     static String validateEffort(String value) {
         if (value == null || value.isBlank()) {
-            return "не может быть пустым.";
+            return "must not be empty.";
         }
         String normalized = value.trim().toLowerCase(java.util.Locale.ROOT);
         return ALLOWED_EFFORTS.contains(normalized)
                 ? null
-                : "допустимы minimal, low, medium, high, xhigh или max.";
+                : "must be one of minimal, low, medium, high, xhigh, or max.";
     }
 
     static boolean isValidModel(String value) {
@@ -66,7 +66,7 @@ record ModelPreset(PresetId id, String label, String model, String effort) {
         String normalized = value == null ? "" : value.trim();
         String error = validateModel(normalized);
         if (error != null) {
-            throw new IllegalArgumentException("Некорректное имя модели: " + error);
+            throw new IllegalArgumentException("Invalid model name: " + error);
         }
         return normalized;
     }
@@ -75,7 +75,7 @@ record ModelPreset(PresetId id, String label, String model, String effort) {
         String normalized = value == null ? "" : value.trim().toLowerCase(java.util.Locale.ROOT);
         String error = validateEffort(normalized);
         if (error != null) {
-            throw new IllegalArgumentException("Некорректный уровень reasoning: " + error);
+            throw new IllegalArgumentException("Invalid reasoning effort: " + error);
         }
         return normalized;
     }

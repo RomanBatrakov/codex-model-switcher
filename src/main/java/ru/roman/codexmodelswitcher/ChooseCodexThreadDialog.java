@@ -35,7 +35,7 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
     private final DefaultListModel<CodexThread> matchingThreads = new DefaultListModel<>();
     private final JBList<CodexThread> threadList = new JBList<>(matchingThreads);
     private final JBTextField searchField = new JBTextField();
-    private final JButton refreshButton = new JButton("Обновить");
+    private final JButton refreshButton = new JButton("Refresh");
     private String preferredThreadId;
 
     ChooseCodexThreadDialog(
@@ -49,7 +49,7 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
         this.allThreads = allThreads;
         this.preferredThreadId = preferredThreadId;
         this.refreshSupplier = refreshSupplier;
-        setTitle("Открыть чат Codex");
+        setTitle("Open Codex Chat");
         threadList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         threadList.setCellRenderer(new ThreadRenderer());
         threadList.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -71,7 +71,7 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
         JPanel panel = new JBPanel<>(new BorderLayout(0, 8));
         panel.setPreferredSize(new Dimension(680, 460));
         JPanel searchPanel = new JBPanel<>(new GridLayout(0, 1, 0, 4));
-        searchPanel.add(new JBLabel("Поиск по названию или первому сообщению:"));
+        searchPanel.add(new JBLabel("Search by name or first message:"));
         searchPanel.add(searchField);
         panel.add(searchPanel, BorderLayout.NORTH);
         panel.add(new JBScrollPane(threadList), BorderLayout.CENTER);
@@ -111,12 +111,12 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
 
     private void refreshFromServer() {
         refreshButton.setEnabled(false);
-        refreshButton.setText("Обновление…");
+        refreshButton.setText("Refreshing…");
         refreshSupplier.get().whenComplete((threads, error) -> ApplicationManager.getApplication().invokeLater(() -> {
             refreshButton.setEnabled(true);
-            refreshButton.setText("Обновить");
+            refreshButton.setText("Refresh");
             if (error != null) {
-                CodexNotifications.error(project, "Не удалось обновить список чатов", CodexUtils.userMessage(error));
+                CodexNotifications.error(project, "Failed to refresh the chat list", CodexUtils.userMessage(error));
                 return;
             }
             allThreads = new ArrayList<>(threads);

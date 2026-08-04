@@ -21,7 +21,7 @@ final class CodexWorkflow {
     static void startServer(Project project) {
         ensureServerReady(project).whenComplete((ignored, error) -> {
             if (error != null) {
-                CodexNotifications.error(project, "Не удалось подключиться к серверу Codex", serverErrorMessage(error));
+                CodexNotifications.error(project, "Could not connect to the Codex server", serverErrorMessage(error));
             }
         });
     }
@@ -32,7 +32,7 @@ final class CodexWorkflow {
                 .thenRun(() -> CodexModelSwitcherSettings.getInstance().setLastPresetId(preset.id()))
                 .whenComplete((ignored, error) -> {
                     if (error != null) {
-                        CodexNotifications.error(project, "Модель не изменена", CodexUtils.userMessage(error));
+                        CodexNotifications.error(project, "Model was not changed", CodexUtils.userMessage(error));
                     }
                 });
     }
@@ -42,7 +42,7 @@ final class CodexWorkflow {
         ModelPreset preset = ModelPreset.forId(CodexModelSwitcherSettings.getInstance().lastPresetId());
         ensureServerReady(project).whenComplete((ignored, error) -> {
             if (error != null) {
-                CodexNotifications.error(project, "Не удалось создать новый чат", CodexUtils.userMessage(error));
+                CodexNotifications.error(project, "Could not create a new chat", CodexUtils.userMessage(error));
                 return;
             }
             ApplicationManager.getApplication().invokeLater(() -> openNewChatInTerminal(project, directory, preset));
@@ -54,7 +54,7 @@ final class CodexWorkflow {
                 .thenCompose(ignored -> CodexAppServerClient.getInstance().listThreads())
                 .whenComplete((threads, error) -> {
                     if (error != null) {
-                        CodexNotifications.error(project, "Нет связи с Codex", serverErrorMessage(error));
+                        CodexNotifications.error(project, "No connection to Codex", serverErrorMessage(error));
                         return;
                     }
                     ApplicationManager.getApplication().invokeLater(() -> showChatPicker(project, threads));
@@ -128,7 +128,7 @@ final class CodexWorkflow {
 
     private static void openChatInTerminal(Project project, CodexThread thread) {
         if (thread == null || !CodexThread.isValidId(thread.id())) {
-            CodexNotifications.error(project, "Некорректный идентификатор чата", "Плагин не стал открывать чат с неизвестным идентификатором.");
+            CodexNotifications.error(project, "Invalid chat identifier", "The plugin refused to open a chat with an unknown identifier.");
             return;
         }
         try {
@@ -142,7 +142,7 @@ final class CodexWorkflow {
                     .createLocalShellWidget(directory, "Codex — " + thread.shortId(), true, true);
             terminal.executeCommand(command);
         } catch (IOException error) {
-            CodexNotifications.error(project, "Не удалось открыть чат в терминале", CodexUtils.userMessage(error));
+            CodexNotifications.error(project, "Could not open the chat in a terminal", CodexUtils.userMessage(error));
         }
     }
 
@@ -157,10 +157,10 @@ final class CodexWorkflow {
                     + " --model " + CodexUtils.shellQuote(preset.model())
                     + " -c " + CodexUtils.shellQuote("model_reasoning_effort=\"" + preset.effort() + "\"");
             ShellTerminalWidget terminal = TerminalView.getInstance(project)
-                    .createLocalShellWidget(directory, "Codex — новый чат", true, true);
+                    .createLocalShellWidget(directory, "Codex — new chat", true, true);
             terminal.executeCommand(command);
         } catch (IOException error) {
-            CodexNotifications.error(project, "Не удалось открыть новый чат", CodexUtils.userMessage(error));
+            CodexNotifications.error(project, "Could not open a new chat", CodexUtils.userMessage(error));
         }
     }
 
@@ -180,7 +180,7 @@ final class CodexWorkflow {
     }
 
     private static String serverErrorMessage(Throwable error) {
-        return "Сервер Codex не стал доступен за несколько секунд. Открой вкладку «Codex Server» "
-                + "внизу IDEA: там видна точная ошибка запуска. Техническая причина: " + CodexUtils.userMessage(error);
+        return "The Codex server did not become available within a few seconds. Open the \"Codex Server\" tab "
+                + "at the bottom of the IDE to see the exact startup error. Technical reason: " + CodexUtils.userMessage(error);
     }
 }

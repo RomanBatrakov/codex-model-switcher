@@ -24,7 +24,7 @@ final class CodexUtils {
                 .filter(path -> Files.isRegularFile(path) && Files.isExecutable(path))
                 .findFirst()
                 .orElseThrow(() -> new IOException(
-                        "Не найден безопасный исполняемый файл Codex в /opt/homebrew/bin/codex или /usr/local/bin/codex."));
+                        "Could not find a trusted Codex executable at /opt/homebrew/bin/codex or /usr/local/bin/codex."));
     }
 
     static String shellQuote(String value) {

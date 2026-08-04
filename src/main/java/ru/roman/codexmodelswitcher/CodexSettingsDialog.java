@@ -40,7 +40,7 @@ final class CodexSettingsDialog extends DialogWrapper {
         for (ModelPreset.PresetId presetId : ModelPreset.PresetId.values()) {
             presetFields[presetId.ordinal()] = new PresetFields(presetId, modelSuggestions);
         }
-        setTitle("Настройки Codex Model Switcher");
+        setTitle("Codex Model Switcher Settings");
         init();
     }
 
@@ -50,7 +50,7 @@ final class CodexSettingsDialog extends DialogWrapper {
         panel.setPreferredSize(new Dimension(720, 340));
 
         JPanel connectionPanel = new JBPanel<>(new GridLayout(2, 1, 0, 4));
-        connectionPanel.add(new JBLabel("Адрес app-server:"));
+        connectionPanel.add(new JBLabel("App-server address:"));
         connectionPanel.add(serverUrlField);
         panel.add(connectionPanel, BorderLayout.NORTH);
 
@@ -59,8 +59,8 @@ final class CodexSettingsDialog extends DialogWrapper {
         constraints.insets = new Insets(3, 4, 3, 4);
         constraints.fill = GridBagConstraints.HORIZONTAL;
         constraints.weightx = 0;
-        addHeader(presetsPanel, constraints, 0, "Пресет");
-        addHeader(presetsPanel, constraints, 1, "Модель");
+        addHeader(presetsPanel, constraints, 0, "Preset");
+        addHeader(presetsPanel, constraints, 1, "Model");
         addHeader(presetsPanel, constraints, 2, "Reasoning");
         addHeader(presetsPanel, constraints, 3, "Ctrl +");
         for (PresetFields fields : presetFields) {
@@ -75,7 +75,7 @@ final class CodexSettingsDialog extends DialogWrapper {
         panel.add(presetsPanel, BorderLayout.CENTER);
 
         JPanel footer = new JBPanel<>(new BorderLayout());
-        JButton resetButton = new JButton("Сбросить пресеты");
+        JButton resetButton = new JButton("Reset presets");
         resetButton.addActionListener(ignored -> resetFields());
         footer.add(resetButton, BorderLayout.EAST);
         panel.add(footer, BorderLayout.SOUTH);
@@ -119,26 +119,26 @@ final class CodexSettingsDialog extends DialogWrapper {
             } catch (IllegalArgumentException error) {
                 return error.getMessage();
             }
-            return "Адрес app-server некорректен.";
+            return "The app-server address is invalid.";
         }
         Set<String> shortcuts = new HashSet<>();
         for (PresetFields fields : presetFields) {
             String model = fields.model();
             String modelError = ModelPreset.validateModel(model);
             if (modelError != null) {
-                return "Модель для «" + fields.presetId.label() + "» " + modelError;
+                return "Model for \"" + fields.presetId.label() + "\" " + modelError;
             }
             String effort = fields.effort();
             String effortError = ModelPreset.validateEffort(effort);
             if (effortError != null) {
-                return "Уровень reasoning для «" + fields.presetId.label() + "» " + effortError;
+                return "Reasoning effort for \"" + fields.presetId.label() + "\" " + effortError;
             }
             String shortcut = fields.shortcutField.getText().trim();
             if (!shortcut.matches("[1-9]")) {
-                return "Сочетание для «" + fields.presetId.label() + "» должно быть одной цифрой от 1 до 9.";
+                return "Shortcut for \"" + fields.presetId.label() + "\" must be a single digit from 1 to 9.";
             }
             if (!shortcuts.add(shortcut)) {
-                return "У разных пресетов не могут повторяться цифры сочетаний.";
+                return "Presets cannot share the same shortcut digit.";
             }
         }
         return null;
