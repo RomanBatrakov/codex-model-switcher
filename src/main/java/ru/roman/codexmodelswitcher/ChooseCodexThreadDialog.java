@@ -108,26 +108,12 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
             refreshButton.setEnabled(true);
             refreshButton.setText("Обновить");
             if (error != null) {
-                CodexNotifications.error(project, "Не удалось обновить список чатов", safeErrorMessage(error));
+                CodexNotifications.error(project, "Не удалось обновить список чатов", CodexUtils.userMessage(error));
                 return;
             }
             allThreads = new ArrayList<>(threads);
             refreshMatches();
         }));
-    }
-
-    private static String safeErrorMessage(Throwable error) {
-        Throwable current = error;
-        while ((current instanceof CompletionException || current instanceof java.util.concurrent.ExecutionException)
-                && current.getCause() != null) {
-            current = current.getCause();
-        }
-        String message = current.getMessage();
-        if (message == null || message.isBlank()) {
-            return current.getClass().getSimpleName();
-        }
-        String sanitized = message.replaceAll("[\\r\\n\\t]+", " ").trim();
-        return sanitized.length() <= 500 ? sanitized : sanitized.substring(0, 500) + "…";
     }
 
     private final class SearchListener implements DocumentListener {

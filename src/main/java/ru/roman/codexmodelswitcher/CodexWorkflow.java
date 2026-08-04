@@ -15,10 +15,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 final class CodexWorkflow {
-    private static final List<Path> CODEX_LOCATIONS = List.of(
-            Path.of("/opt/homebrew/bin/codex"),
-            Path.of("/usr/local/bin/codex")
-    );
     private CodexWorkflow() {
     }
 
@@ -36,7 +32,7 @@ final class CodexWorkflow {
                 .thenRun(() -> CodexModelSwitcherSettings.getInstance().setLastPresetId(preset.id()))
                 .whenComplete((ignored, error) -> {
                     if (error != null) {
-                        CodexNotifications.error(project, "Модель не изменена", userMessage(error));
+                        CodexNotifications.error(project, "Модель не изменена", CodexUtils.userMessage(error));
                     }
                 });
     }
@@ -46,7 +42,7 @@ final class CodexWorkflow {
         ModelPreset preset = ModelPreset.forId(CodexModelSwitcherSettings.getInstance().lastPresetId());
         ensureServerReady(project).whenComplete((ignored, error) -> {
             if (error != null) {
-                CodexNotifications.error(project, "Не удалось создать новый чат", userMessage(error));
+                CodexNotifications.error(project, "Не удалось создать новый чат", CodexUtils.userMessage(error));
                 return;
             }
             ApplicationManager.getApplication().invokeLater(() -> openNewChatInTerminal(project, directory, preset));
@@ -138,15 +134,15 @@ final class CodexWorkflow {
         try {
             CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
             String directory = project.getBasePath() == null ? System.getProperty("user.dir") : project.getBasePath();
-            String command = authEnvironmentPrefix() + shellQuote(codexExecutable().toString())
-                    + " --remote " + shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
+            String command = authEnvironmentPrefix() + CodexUtils.shellQuote(CodexUtils.codexExecutable().toString())
+                    + " --remote " + CodexUtils.shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
                     + remoteAuthOption()
-                    + " resume " + shellQuote(thread.id());
+                    + " resume " + CodexUtils.shellQuote(thread.id());
             ShellTerminalWidget terminal = TerminalView.getInstance(project)
                     .createLocalShellWidget(directory, "Codex — " + thread.shortId(), true, true);
             terminal.executeCommand(command);
         } catch (IOException error) {
-            CodexNotifications.error(project, "Не удалось открыть чат в терминале", userMessage(error));
+            CodexNotifications.error(project, "Не удалось открыть чат в терминале", CodexUtils.userMessage(error));
         }
     }
 
@@ -155,29 +151,17 @@ final class CodexWorkflow {
             CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
             ModelPreset.requireModel(preset.model());
             ModelPreset.requireEffort(preset.effort());
-            String command = authEnvironmentPrefix() + shellQuote(codexExecutable().toString())
-                    + " --remote " + shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
+            String command = authEnvironmentPrefix() + CodexUtils.shellQuote(CodexUtils.codexExecutable().toString())
+                    + " --remote " + CodexUtils.shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
                     + remoteAuthOption()
-                    + " --model " + shellQuote(preset.model())
-                    + " -c " + shellQuote("model_reasoning_effort=\"" + preset.effort() + "\"");
+                    + " --model " + CodexUtils.shellQuote(preset.model())
+                    + " -c " + CodexUtils.shellQuote("model_reasoning_effort=\"" + preset.effort() + "\"");
             ShellTerminalWidget terminal = TerminalView.getInstance(project)
                     .createLocalShellWidget(directory, "Codex — новый чат", true, true);
             terminal.executeCommand(command);
         } catch (IOException error) {
-            CodexNotifications.error(project, "Не удалось открыть новый чат", userMessage(error));
+            CodexNotifications.error(project, "Не удалось открыть новый чат", CodexUtils.userMessage(error));
         }
-    }
-
-    private static Path codexExecutable() throws IOException {
-        return CODEX_LOCATIONS.stream()
-                .filter(path -> Files.isRegularFile(path) && Files.isExecutable(path))
-                .findFirst()
-                .orElseThrow(() -> new IOException(
-                        "Не найден безопасный исполняемый файл Codex в /opt/homebrew/bin/codex или /usr/local/bin/codex."));
-    }
-
-    private static String shellQuote(String value) {
-        return "'" + value.replace("'", "'\"'\"'") + "'";
     }
 
     private static String authEnvironmentPrefix() {
@@ -186,7 +170,7 @@ final class CodexWorkflow {
             return "";
         }
         return CodexServerStarter.AUTH_TOKEN_ENV
-                + "=\"$(/bin/cat " + shellQuote(tokenFile.toString()) + ")\" ";
+                + "=\"$(/bin/cat " + CodexUtils.shellQuote(tokenFile.toString()) + ")\" ";
     }
 
     private static String remoteAuthOption() {
@@ -195,18 +179,8 @@ final class CodexWorkflow {
                 : " --remote-auth-token-env " + CodexServerStarter.AUTH_TOKEN_ENV;
     }
 
-    private static String userMessage(Throwable error) {
-        Throwable current = error instanceof CompletionException && error.getCause() != null ? error.getCause() : error;
-        String message = current.getMessage();
-        if (message == null || message.isBlank()) {
-            return current.getClass().getSimpleName();
-        }
-        String sanitized = message.replaceAll("[\\r\\n\\t]+", " ").trim();
-        return sanitized.length() <= 500 ? sanitized : sanitized.substring(0, 500) + "…";
-    }
-
     private static String serverErrorMessage(Throwable error) {
         return "Сервер Codex не стал доступен за несколько секунд. Открой вкладку «Codex Server» "
-                + "внизу IDEA: там видна точная ошибка запуска. Техническая причина: " + userMessage(error);
+                + "внизу IDEA: там видна точная ошибка запуска. Техническая причина: " + CodexUtils.userMessage(error);
     }
 }

@@ -21,10 +21,6 @@ import java.security.SecureRandom;
 @Service(Service.Level.APP)
 public final class CodexServerStarter implements Disposable {
     static final String AUTH_TOKEN_ENV = "CODEX_MODEL_SWITCHER_TOKEN";
-    private static final List<Path> CODEX_LOCATIONS = List.of(
-            Path.of("/opt/homebrew/bin/codex"),
-            Path.of("/usr/local/bin/codex")
-    );
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private ShellTerminalWidget serverTerminal;
@@ -37,7 +33,7 @@ public final class CodexServerStarter implements Disposable {
 
     public synchronized boolean start(Project project) throws IOException {
         CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
-        Path codexExecutable = codexExecutable();
+        Path codexExecutable = CodexUtils.codexExecutable();
         Path newAuthTokenFile = createAuthTokenFile();
         String newAuthToken;
         try {
@@ -60,11 +56,11 @@ public final class CodexServerStarter implements Disposable {
         try {
             String directory = project.getBasePath() == null ? System.getProperty("user.dir") : project.getBasePath();
             serverTerminal = TerminalView.getInstance(project).createLocalShellWidget(directory, "Codex Server");
-            serverTerminal.executeCommand(shellQuote(codexExecutable.toString())
+            serverTerminal.executeCommand(CodexUtils.shellQuote(codexExecutable.toString())
                     + " app-server --listen "
-                    + shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
+                    + CodexUtils.shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
                     + " --ws-auth capability-token --ws-token-file "
-                    + shellQuote(authTokenFile.toString()));
+                    + CodexUtils.shellQuote(authTokenFile.toString()));
             return true;
         } catch (IOException | RuntimeException error) {
             if (serverTerminal != null) {
@@ -209,18 +205,6 @@ public final class CodexServerStarter implements Disposable {
             // A newly-created owner-only token file is safe to leave for the
             // operating system's temporary-file cleanup if deletion races.
         }
-    }
-
-    private static Path codexExecutable() throws IOException {
-        return CODEX_LOCATIONS.stream()
-                .filter(path -> Files.isRegularFile(path) && Files.isExecutable(path))
-                .findFirst()
-                .orElseThrow(() -> new IOException(
-                        "Не найден безопасный исполняемый файл Codex в /opt/homebrew/bin/codex или /usr/local/bin/codex."));
-    }
-
-    private static String shellQuote(String value) {
-        return "'" + value.replace("'", "'\\\"'\\\"'") + "'";
     }
 
     @Override
