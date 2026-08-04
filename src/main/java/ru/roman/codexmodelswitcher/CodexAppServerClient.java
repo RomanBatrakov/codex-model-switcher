@@ -178,7 +178,7 @@ public final class CodexAppServerClient implements Disposable {
             paths.filter(path -> path.getFileName().toString().endsWith(".jsonl"))
                  .limit(MAX_SESSION_FILES)
                  .forEach(path -> readThreadFile(path).ifPresent(thread -> threadsById.put(thread.id(), thread)));
-        } catch (IOException error) {
+        } catch (IOException | java.io.UncheckedIOException error) {
             throw new CompletionException("Не удалось прочитать локальный список чатов Codex.", error);
         }
         return threadsById.values()
