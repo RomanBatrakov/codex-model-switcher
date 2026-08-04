@@ -1,10 +1,12 @@
 package ru.roman.codexmodelswitcher;
 
+import java.util.List;
 import java.util.Set;
 
 record ModelPreset(PresetId id, String label, String model, String effort) {
     private static final int MAX_MODEL_LENGTH = 128;
-    private static final Set<String> ALLOWED_EFFORTS = Set.of("minimal", "low", "medium", "high", "xhigh", "max");
+    static final List<String> EFFORT_OPTIONS = List.of("minimal", "low", "medium", "high", "xhigh", "max");
+    private static final Set<String> ALLOWED_EFFORTS = Set.copyOf(EFFORT_OPTIONS);
 
     enum PresetId {
         TERRA_MEDIUM("Terra / Medium"),

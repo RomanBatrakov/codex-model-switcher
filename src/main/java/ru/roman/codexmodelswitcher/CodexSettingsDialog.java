@@ -8,6 +8,7 @@ import com.intellij.ui.components.JBTextField;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import java.awt.BorderLayout;
@@ -17,6 +18,8 @@ import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 final class CodexSettingsDialog extends DialogWrapper {
@@ -28,9 +31,14 @@ final class CodexSettingsDialog extends DialogWrapper {
         super(project);
         settings = CodexModelSwitcherSettings.getInstance();
         serverUrlField = new JBTextField(settings.serverUrl());
+        Set<String> modelSuggestions = new LinkedHashSet<>(
+                List.of("gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.6-luna"));
+        for (ModelPreset.PresetId presetId : ModelPreset.PresetId.values()) {
+            modelSuggestions.add(settings.model(presetId));
+        }
         presetFields = new PresetFields[ModelPreset.PresetId.values().length];
         for (ModelPreset.PresetId presetId : ModelPreset.PresetId.values()) {
-            presetFields[presetId.ordinal()] = new PresetFields(presetId);
+            presetFields[presetId.ordinal()] = new PresetFields(presetId, modelSuggestions);
         }
         setTitle("Настройки Codex Model Switcher");
         init();
@@ -85,8 +93,8 @@ final class CodexSettingsDialog extends DialogWrapper {
         for (PresetFields fields : presetFields) {
             settings.updatePreset(
                     fields.presetId,
-                    fields.modelField.getText().trim(),
-                    fields.effortField.getText().trim(),
+                    fields.model(),
+                    fields.effort(),
                     fields.shortcutField.getText().trim());
         }
         super.doOKAction();
@@ -115,12 +123,12 @@ final class CodexSettingsDialog extends DialogWrapper {
         }
         Set<String> shortcuts = new HashSet<>();
         for (PresetFields fields : presetFields) {
-            String model = fields.modelField.getText().trim();
+            String model = fields.model();
             String modelError = ModelPreset.validateModel(model);
             if (modelError != null) {
                 return "Модель для «" + fields.presetId.label() + "» " + modelError;
             }
-            String effort = fields.effortField.getText().trim();
+            String effort = fields.effort();
             String effortError = ModelPreset.validateEffort(effort);
             if (effortError != null) {
                 return "Уровень reasoning для «" + fields.presetId.label() + "» " + effortError;
@@ -140,8 +148,8 @@ final class CodexSettingsDialog extends DialogWrapper {
         CodexModelSwitcherSettings.Data defaults = new CodexModelSwitcherSettings.Data();
         serverUrlField.setText(defaults.serverUrl);
         for (PresetFields fields : presetFields) {
-            fields.modelField.setText(defaultsFor(fields.presetId, true));
-            fields.effortField.setText(defaultsFor(fields.presetId, false));
+            fields.modelField.getEditor().setItem(defaultsFor(fields.presetId, true));
+            fields.effortField.setSelectedItem(defaultsFor(fields.presetId, false));
             fields.shortcutField.setText(defaultsShortcut(fields.presetId));
         }
     }
@@ -161,16 +169,27 @@ final class CodexSettingsDialog extends DialogWrapper {
 
     private static final class PresetFields {
         private final ModelPreset.PresetId presetId;
-        private final JBTextField modelField;
-        private final JBTextField effortField;
+        private final JComboBox<String> modelField;
+        private final JComboBox<String> effortField;
         private final JBTextField shortcutField;
 
-        private PresetFields(ModelPreset.PresetId presetId) {
+        private PresetFields(ModelPreset.PresetId presetId, Set<String> modelSuggestions) {
             this.presetId = presetId;
             CodexModelSwitcherSettings settings = CodexModelSwitcherSettings.getInstance();
-            modelField = new JBTextField(settings.model(presetId));
-            effortField = new JBTextField(settings.effort(presetId));
+            modelField = new JComboBox<>(modelSuggestions.toArray(new String[0]));
+            modelField.setEditable(true);
+            modelField.setSelectedItem(settings.model(presetId));
+            effortField = new JComboBox<>(ModelPreset.EFFORT_OPTIONS.toArray(new String[0]));
+            effortField.setSelectedItem(settings.effort(presetId));
             shortcutField = new JBTextField(settings.shortcut(presetId));
+        }
+
+        private String model() {
+            return String.valueOf(modelField.getEditor().getItem()).trim();
+        }
+
+        private String effort() {
+            return String.valueOf(effortField.getSelectedItem());
         }
     }
 }
