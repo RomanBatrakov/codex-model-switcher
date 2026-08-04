@@ -83,6 +83,8 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
         private final Timer statusTimer;
         private CardButton serverCard;
         private final Map<ModelPreset.PresetId, CardButton> modelCards = new EnumMap<>(ModelPreset.PresetId.class);
+        private Boolean lastConnected;
+        private ModelPreset.PresetId lastSelectedPreset;
 
         private ToolWindowPanel(Project project) {
             super(new BorderLayout());
@@ -99,6 +101,8 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
         private void rebuild() {
             removeAll();
             modelCards.clear();
+            lastConnected = null;
+            lastSelectedPreset = null;
             boolean compact = CodexModelSwitcherSettings.getInstance().compactMode();
 
             JPanel sections = new JPanel();
@@ -163,6 +167,12 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
                 return;
             }
             boolean connected = CodexAppServerClient.getInstance().isConnected();
+            ModelPreset.PresetId currentPreset = CodexWorkflow.lastPresetId();
+            if (Boolean.valueOf(connected).equals(lastConnected) && currentPreset == lastSelectedPreset) {
+                return;
+            }
+            lastConnected = connected;
+            lastSelectedPreset = currentPreset;
             serverCard.setSubtitle(connected ? "Online" : "Offline");
             for (Map.Entry<ModelPreset.PresetId, CardButton> entry : modelCards.entrySet()) {
                 // A model action performs its own connection/readiness check and
@@ -170,9 +180,8 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
                 // card enabled makes the action recoverable after an IDE/plugin
                 // restart instead of turning a transient status into a dead UI.
                 entry.getValue().setEnabled(true);
-                entry.getValue().setHighlighted(entry.getKey() == CodexWorkflow.lastPresetId());
+                entry.getValue().setHighlighted(entry.getKey() == currentPreset);
             }
-            serverCard.repaint();
         }
 
         @Override
