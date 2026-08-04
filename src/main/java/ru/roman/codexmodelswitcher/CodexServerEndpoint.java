@@ -22,28 +22,34 @@ final class CodexServerEndpoint {
         try {
             uri = URI.create(value);
         } catch (IllegalArgumentException error) {
-            throw new IllegalArgumentException("Адрес app-server имеет неверный формат.", error);
+            throw new IllegalArgumentException("Адрес app-server имеет неверный формат." + example(), error);
         }
 
         String scheme = uri.getScheme();
         if (!("ws".equalsIgnoreCase(scheme) || "wss".equalsIgnoreCase(scheme))) {
-            throw new IllegalArgumentException("Адрес app-server должен использовать ws:// или wss://.");
+            throw new IllegalArgumentException("Адрес app-server должен использовать ws:// или wss://." + example());
         }
         if (uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null) {
-            throw new IllegalArgumentException("Адрес app-server не должен содержать логин, параметры или фрагмент.");
+            throw new IllegalArgumentException(
+                    "Адрес app-server не должен содержать логин, параметры или фрагмент." + example());
         }
         String rawPath = uri.getRawPath();
         if (rawPath != null && !rawPath.isEmpty() && !"/".equals(rawPath)) {
-            throw new IllegalArgumentException("Адрес app-server не должен содержать путь.");
+            throw new IllegalArgumentException("Адрес app-server не должен содержать путь." + example());
         }
         String host = uri.getHost();
         if (host == null || !isLoopbackHost(host)) {
-            throw new IllegalArgumentException("Разрешён только локальный адрес app-server (localhost или loopback).");
+            throw new IllegalArgumentException(
+                    "Разрешён только локальный адрес app-server (localhost или loopback)." + example());
         }
         if (uri.getPort() < 1 || uri.getPort() > 65535) {
-            throw new IllegalArgumentException("Укажите порт app-server от 1 до 65535.");
+            throw new IllegalArgumentException("Укажите порт app-server от 1 до 65535." + example());
         }
         return uri;
+    }
+
+    private static String example() {
+        return " Пример: " + DEFAULT_URL;
     }
 
     static boolean isValid(String rawValue) {
