@@ -207,7 +207,7 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             setContentAreaFilled(false);
             setBorderPainted(false);
             setOpaque(false);
-            int height = subtitle == null ? 40 : 46;
+            int height = subtitle == null ? 34 : 40;
             setPreferredSize(new Dimension(0, height));
             setMinimumSize(new Dimension(0, height));
             setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
@@ -277,11 +277,8 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
                 g.setColor(uiColor("Label.disabledForeground", mix(foreground, background, 0.35f)));
                 g.setFont(getFont().deriveFont(Font.PLAIN, 11f));
                 int shortcutWidth = g.getFontMetrics().stringWidth("⌃" + shortcut);
-                g.drawString("⌃" + shortcut, getWidth() - shortcutWidth - 28, getHeight() / 2 + 4);
+                g.drawString("⌃" + shortcut, getWidth() - shortcutWidth - 12, getHeight() / 2 + 4);
             }
-            g.setColor(uiColor("Label.disabledForeground", mix(foreground, background, 0.35f)));
-            g.setFont(getFont().deriveFont(Font.PLAIN, 19f));
-            g.drawString("›", getWidth() - 18, getHeight() / 2 + 6);
             g.dispose();
         }
     }
