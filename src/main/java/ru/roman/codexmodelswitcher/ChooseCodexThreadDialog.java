@@ -52,6 +52,14 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
         setTitle("Открыть чат Codex");
         threadList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         threadList.setCellRenderer(new ThreadRenderer());
+        threadList.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent event) {
+                if (event.getClickCount() == 2 && selectedThread() != null) {
+                    doOKAction();
+                }
+            }
+        });
         searchField.getDocument().addDocumentListener(new SearchListener());
         refreshButton.addActionListener(ignored -> refreshFromServer());
         refreshMatches();
