@@ -90,14 +90,6 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         }
     }
 
-    public boolean compactMode() {
-        return data.compactMode;
-    }
-
-    public void setCompactMode(boolean compactMode) {
-        data.compactMode = compactMode;
-    }
-
     public String lastThreadId() {
         return data.lastThreadId;
     }
@@ -179,7 +171,6 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         public String lunaMaxModel = "gpt-5.6-luna";
         public String lunaMaxEffort = "max";
         public String lunaMaxShortcut = "4";
-        public boolean compactMode;
         public String lastThreadId;
         public String lastPresetId = ModelPreset.PresetId.TERRA_MEDIUM.name();
     }

@@ -2,7 +2,6 @@ package ru.roman.codexmodelswitcher;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
-import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBPanel;
 import com.intellij.ui.components.JBTextField;
@@ -23,14 +22,12 @@ import java.util.Set;
 final class CodexSettingsDialog extends DialogWrapper {
     private final CodexModelSwitcherSettings settings;
     private final JBTextField serverUrlField;
-    private final JBCheckBox compactModeCheckBox;
     private final PresetFields[] presetFields;
 
     CodexSettingsDialog(Project project) {
         super(project);
         settings = CodexModelSwitcherSettings.getInstance();
         serverUrlField = new JBTextField(settings.serverUrl());
-        compactModeCheckBox = new JBCheckBox("Компактный режим", settings.compactMode());
         presetFields = new PresetFields[ModelPreset.PresetId.values().length];
         for (ModelPreset.PresetId presetId : ModelPreset.PresetId.values()) {
             presetFields[presetId.ordinal()] = new PresetFields(presetId);
@@ -70,7 +67,6 @@ final class CodexSettingsDialog extends DialogWrapper {
         panel.add(presetsPanel, BorderLayout.CENTER);
 
         JPanel footer = new JBPanel<>(new BorderLayout());
-        footer.add(compactModeCheckBox, BorderLayout.WEST);
         JButton resetButton = new JButton("Сбросить пресеты");
         resetButton.addActionListener(ignored -> resetFields());
         footer.add(resetButton, BorderLayout.EAST);
@@ -86,7 +82,6 @@ final class CodexSettingsDialog extends DialogWrapper {
             return;
         }
         settings.setServerUrl(serverUrlField.getText().trim());
-        settings.setCompactMode(compactModeCheckBox.isSelected());
         for (PresetFields fields : presetFields) {
             settings.updatePreset(
                     fields.presetId,
@@ -144,7 +139,6 @@ final class CodexSettingsDialog extends DialogWrapper {
     private void resetFields() {
         CodexModelSwitcherSettings.Data defaults = new CodexModelSwitcherSettings.Data();
         serverUrlField.setText(defaults.serverUrl);
-        compactModeCheckBox.setSelected(defaults.compactMode);
         for (PresetFields fields : presetFields) {
             fields.modelField.setText(defaultsFor(fields.presetId, true));
             fields.effortField.setText(defaultsFor(fields.presetId, false));

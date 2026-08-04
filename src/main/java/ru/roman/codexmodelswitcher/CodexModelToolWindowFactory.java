@@ -48,22 +48,22 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
         Disposer.register(content, panel);
     }
 
-    private static void addSection(JPanel sections, String title, boolean compact) {
+    private static void addSection(JPanel sections, String title) {
         if (sections.getComponentCount() > 0) {
-            sections.add(Box.createVerticalStrut(compact ? 5 : 8));
+            sections.add(Box.createVerticalStrut(5));
         }
         JBLabel label = new JBLabel(title);
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
-        label.setBorder(JBUI.Borders.empty(2, 4, compact ? 2 : 3, 4));
+        label.setBorder(JBUI.Borders.empty(2, 4, 2, 4));
         label.setForeground(uiColor("Label.disabledForeground", new JBColor(0x6B6B6B, 0xA6A6A6)));
         label.setFont(label.getFont().deriveFont(Font.BOLD, 10f));
         sections.add(label);
     }
 
-    private static void addCard(JPanel sections, CardButton card, boolean compact) {
+    private static void addCard(JPanel sections, CardButton card) {
         card.setAlignmentX(Component.LEFT_ALIGNMENT);
         sections.add(card);
-        sections.add(Box.createVerticalStrut(compact ? 2 : 4));
+        sections.add(Box.createVerticalStrut(2));
     }
 
     private static Color uiColor(String key, Color fallback) {
@@ -103,36 +103,33 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             modelCards.clear();
             lastConnected = null;
             lastSelectedPreset = null;
-            boolean compact = CodexModelSwitcherSettings.getInstance().compactMode();
 
             JPanel sections = new JPanel();
             sections.setLayout(new BoxLayout(sections, BoxLayout.Y_AXIS));
             sections.setBorder(JBUI.Borders.empty(0, 0, 8, 0));
             sections.setOpaque(false);
 
-            addSection(sections, "ACTIONS", compact);
+            addSection(sections, "ACTIONS");
             serverCard = new CardButton("Server", "Offline", "≡", SERVER_ACCENT, () -> {
                 serverCard.setSubtitle("Starting…");
                 CodexWorkflow.startServer(project);
-            }, null, compact);
-            addCard(sections, serverCard, compact);
+            }, null);
+            addCard(sections, serverCard);
             addCard(sections,
-                new CardButton("New chat", null, "+", CHAT_ACCENT, () -> CodexWorkflow.startNewChat(project), null,
-                    compact), compact);
+                new CardButton("New chat", null, "+", CHAT_ACCENT, () -> CodexWorkflow.startNewChat(project), null));
             addCard(sections,
                 new CardButton("Choose chat", null, "□", PICKER_ACCENT, () -> CodexWorkflow.chooseAndOpenChat(project),
-                    null, compact), compact);
+                    null));
 
-            addSection(sections, "MODELS", compact);
-            addModelCard(sections, ModelPreset.PresetId.TERRA_MEDIUM, "T", TERRA_ACCENT, compact);
-            addModelCard(sections, ModelPreset.PresetId.TERRA_XHIGH, "T", TERRA_XHIGH_ACCENT, compact);
-            addModelCard(sections, ModelPreset.PresetId.SOL_XHIGH, "S", SOL_ACCENT, compact);
-            addModelCard(sections, ModelPreset.PresetId.LUNA_MAX, "L", LUNA_ACCENT, compact);
+            addSection(sections, "MODELS");
+            addModelCard(sections, ModelPreset.PresetId.TERRA_MEDIUM, "T", TERRA_ACCENT);
+            addModelCard(sections, ModelPreset.PresetId.TERRA_XHIGH, "T", TERRA_XHIGH_ACCENT);
+            addModelCard(sections, ModelPreset.PresetId.SOL_XHIGH, "S", SOL_ACCENT);
+            addModelCard(sections, ModelPreset.PresetId.LUNA_MAX, "L", LUNA_ACCENT);
 
-            addSection(sections, "OPTIONS", compact);
+            addSection(sections, "OPTIONS");
             addCard(sections,
-                new CardButton("Settings", "presets and shortcuts", "⚙", PICKER_ACCENT, this::openSettings, null,
-                    compact), compact);
+                new CardButton("Settings", "presets and shortcuts", "⚙", PICKER_ACCENT, this::openSettings, null));
 
             JBScrollPane scrollPane = new JBScrollPane(sections);
             scrollPane.setBorder(null);
@@ -146,14 +143,13 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             repaint();
         }
 
-        private void addModelCard(JPanel sections, ModelPreset.PresetId presetId, String glyph, Color accent,
-                                  boolean compact) {
+        private void addModelCard(JPanel sections, ModelPreset.PresetId presetId, String glyph, Color accent) {
             ModelPreset preset = ModelPreset.forId(presetId);
             CardButton card = new CardButton(preset.label(), null, glyph, accent,
                 () -> CodexWorkflow.switchModel(project, ModelPreset.forId(presetId)),
-                CodexModelSwitcherSettings.getInstance().shortcut(presetId), compact);
+                CodexModelSwitcherSettings.getInstance().shortcut(presetId));
             modelCards.put(presetId, card);
-            addCard(sections, card, compact);
+            addCard(sections, card);
         }
 
         private void openSettings() {
@@ -196,25 +192,22 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
         private final String glyph;
         private final Color accent;
         private final String shortcut;
-        private final boolean compact;
         private boolean selected;
 
-        private CardButton(String title, String subtitle, String glyph, Color accent, Runnable action, String shortcut,
-                           boolean compact) {
+        private CardButton(String title, String subtitle, String glyph, Color accent, Runnable action, String shortcut) {
             super(title);
             this.title = title;
             this.subtitle = subtitle;
             this.glyph = glyph;
             this.accent = accent;
             this.shortcut = shortcut;
-            this.compact = compact;
             setToolTipText(subtitle == null ? title : title + " — " + subtitle);
             setFocusable(false);
             setRolloverEnabled(true);
             setContentAreaFilled(false);
             setBorderPainted(false);
             setOpaque(false);
-            int height = subtitle == null ? (compact ? 40 : 46) : (compact ? 46 : 52);
+            int height = subtitle == null ? 40 : 46;
             setPreferredSize(new Dimension(0, height));
             setMinimumSize(new Dimension(0, height));
             setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
@@ -269,7 +262,7 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             Color foreground = isEnabled() ? uiColor("Button.foreground", new JBColor(0x303030, 0xE8E8E8)) :
                 uiColor("Button.disabledForeground", new JBColor(0x8A8A8A, 0x777777));
             g.setColor(foreground);
-            g.setFont(getFont().deriveFont(Font.PLAIN, compact ? 12f : 13f));
+            g.setFont(getFont().deriveFont(Font.PLAIN, 12f));
             int textX = 40;
             if (subtitle == null) {
                 g.drawString(title, textX, getHeight() / 2 + 5);
