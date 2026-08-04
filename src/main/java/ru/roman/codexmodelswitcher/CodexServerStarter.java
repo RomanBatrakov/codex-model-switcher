@@ -132,7 +132,8 @@ public final class CodexServerStarter implements Disposable {
         for (int index = 0; index + 1 < arguments.length; index++) {
             if ("--ws-token-file".equals(arguments[index])) {
                 try {
-                    Path path = Path.of(arguments[index + 1]);
+                    String rawPath = unquote(arguments[index + 1]);
+                    Path path = Path.of(rawPath);
                     return path.isAbsolute() ? path : null;
                 } catch (RuntimeException ignored) {
                     return null;
@@ -140,6 +141,17 @@ public final class CodexServerStarter implements Disposable {
             }
         }
         return null;
+    }
+
+    private static String unquote(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        if ((trimmed.startsWith("'") && trimmed.endsWith("'")) || (trimmed.startsWith("\"") && trimmed.endsWith("\""))) {
+            return trimmed.substring(1, trimmed.length() - 1);
+        }
+        return trimmed;
     }
 
     private static boolean isOwnerOnlyTokenFile(Path tokenFile) throws IOException {
