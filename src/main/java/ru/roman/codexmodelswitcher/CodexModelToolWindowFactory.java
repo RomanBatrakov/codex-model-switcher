@@ -136,7 +136,7 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
 
         private void addModelCard(JPanel sections, ModelPreset.PresetId presetId, String glyph, Color accent) {
             ModelPreset preset = ModelPreset.forId(presetId);
-            CardButton card = new CardButton(preset.label(), preset.model() + " · " + preset.effort(), glyph, accent,
+            CardButton card = new CardButton(preset.model() + " · " + preset.effort(), preset.label(), glyph, accent,
                 () -> CodexWorkflow.switchModel(project, ModelPreset.forId(presetId)),
                 CodexModelSwitcherSettings.getInstance().shortcut(presetId));
             modelCards.put(presetId, card);
