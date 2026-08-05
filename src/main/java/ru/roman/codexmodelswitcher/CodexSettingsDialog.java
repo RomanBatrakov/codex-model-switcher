@@ -2,30 +2,39 @@ package ru.roman.codexmodelswitcher;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBPanel;
 import com.intellij.ui.components.JBTextField;
+import com.intellij.ui.table.JBTable;
 import org.jetbrains.annotations.Nullable;
 
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
+import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 final class CodexSettingsDialog extends DialogWrapper {
+    private static final String[] PROFILE_COLUMNS = {"Name", "Arguments"};
+
     private final CodexModelSwitcherSettings settings;
     private final JBTextField serverUrlField;
     private final PresetFields[] presetFields;
+    private final DefaultTableModel profilesTableModel;
+    private final JBTable profilesTable;
 
     CodexSettingsDialog(Project project) {
         super(project);
@@ -40,6 +49,11 @@ final class CodexSettingsDialog extends DialogWrapper {
         for (ModelPreset.PresetId presetId : ModelPreset.PresetId.values()) {
             presetFields[presetId.ordinal()] = new PresetFields(presetId, modelSuggestions);
         }
+        profilesTableModel = new DefaultTableModel(PROFILE_COLUMNS, 0);
+        for (LaunchProfile profile : settings.launchProfiles()) {
+            profilesTableModel.addRow(new Object[]{profile.name, profile.arguments});
+        }
+        profilesTable = new JBTable(profilesTableModel);
         setTitle("Codex Model Switcher Settings");
         init();
     }
@@ -47,7 +61,7 @@ final class CodexSettingsDialog extends DialogWrapper {
     @Override
     protected @Nullable JComponent createCenterPanel() {
         JPanel panel = new JBPanel<>(new BorderLayout(0, 12));
-        panel.setPreferredSize(new Dimension(720, 340));
+        panel.setPreferredSize(new Dimension(720, 480));
 
         JPanel connectionPanel = new JBPanel<>(new GridLayout(2, 1, 0, 4));
         connectionPanel.add(new JBLabel("App-server address:"));
@@ -70,9 +84,33 @@ final class CodexSettingsDialog extends DialogWrapper {
             addCell(presetsPanel, constraints, 2, row, fields.effortField);
             addCell(presetsPanel, constraints, 3, row, fields.shortcutField);
         }
-        constraints.weighty = 1;
-        addCell(presetsPanel, constraints, 0, presetFields.length + 1, new JBLabel(""));
-        panel.add(presetsPanel, BorderLayout.CENTER);
+
+        JPanel profilesSection = new JBPanel<>(new BorderLayout(0, 4));
+        profilesSection.add(new JBLabel("Launch profiles:"), BorderLayout.NORTH);
+        JPanel profilesPanel = ToolbarDecorator.createDecorator(profilesTable)
+                .setAddAction(button -> profilesTableModel.addRow(new Object[]{"", ""}))
+                .setRemoveAction(button -> {
+                    if (profilesTable.isEditing()) {
+                        profilesTable.getCellEditor().stopCellEditing();
+                    }
+                    int row = profilesTable.getSelectedRow();
+                    if (row >= 0) {
+                        profilesTableModel.removeRow(row);
+                    }
+                })
+                .disableUpDownActions()
+                .createPanel();
+        profilesPanel.setPreferredSize(new Dimension(0, 140));
+        profilesSection.add(profilesPanel, BorderLayout.CENTER);
+
+        JPanel centerPanel = new JBPanel<>();
+        centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
+        presetsPanel.setAlignmentX(JPanel.LEFT_ALIGNMENT);
+        profilesSection.setAlignmentX(JPanel.LEFT_ALIGNMENT);
+        centerPanel.add(presetsPanel);
+        centerPanel.add(javax.swing.Box.createVerticalStrut(12));
+        centerPanel.add(profilesSection);
+        panel.add(centerPanel, BorderLayout.CENTER);
 
         JPanel footer = new JBPanel<>(new BorderLayout());
         JButton resetButton = new JButton("Reset presets");
@@ -84,6 +122,7 @@ final class CodexSettingsDialog extends DialogWrapper {
 
     @Override
     protected void doOKAction() {
+        stopProfilesEditing();
         String validationError = validateFields();
         if (validationError != null) {
             setErrorText(validationError);
@@ -97,7 +136,30 @@ final class CodexSettingsDialog extends DialogWrapper {
                     fields.effort(),
                     fields.shortcutField.getText().trim());
         }
+        settings.setLaunchProfiles(nonBlankProfileRows());
         super.doOKAction();
+    }
+
+    private void stopProfilesEditing() {
+        if (profilesTable.isEditing()) {
+            profilesTable.getCellEditor().stopCellEditing();
+        }
+    }
+
+    private List<LaunchProfile> nonBlankProfileRows() {
+        List<LaunchProfile> profiles = new ArrayList<>();
+        for (int row = 0; row < profilesTableModel.getRowCount(); row++) {
+            String name = String.valueOf(profilesTableModel.getValueAt(row, 0)).trim();
+            String arguments = String.valueOf(profilesTableModel.getValueAt(row, 1)).trim();
+            if (name.isEmpty() && arguments.isEmpty()) {
+                continue;
+            }
+            LaunchProfile profile = new LaunchProfile();
+            profile.name = name;
+            profile.arguments = arguments;
+            profiles.add(profile);
+        }
+        return profiles;
     }
 
     private void addHeader(JPanel panel, GridBagConstraints constraints, int column, String text) {
@@ -139,6 +201,20 @@ final class CodexSettingsDialog extends DialogWrapper {
             }
             if (!shortcuts.add(shortcut)) {
                 return "Presets cannot share the same shortcut digit.";
+            }
+        }
+        Set<String> profileNames = new HashSet<>();
+        for (LaunchProfile profile : nonBlankProfileRows()) {
+            String nameError = LaunchProfile.validateName(profile.name);
+            if (nameError != null) {
+                return "Launch profile name " + nameError;
+            }
+            String argumentsError = LaunchProfile.validateArguments(profile.arguments);
+            if (argumentsError != null) {
+                return "Launch profile \"" + profile.name + "\" arguments " + argumentsError;
+            }
+            if (!profileNames.add(profile.name)) {
+                return "Launch profile names must be unique.";
             }
         }
         return null;
