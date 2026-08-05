@@ -29,6 +29,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
 public final class CodexModelToolWindowFactory implements ToolWindowFactory {
@@ -117,6 +118,16 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             addModelCard(sections, ModelPreset.PresetId.TERRA_XHIGH, "T", TERRA_XHIGH_ACCENT);
             addModelCard(sections, ModelPreset.PresetId.SOL_XHIGH, "S", SOL_ACCENT);
             addModelCard(sections, ModelPreset.PresetId.LUNA_MAX, "L", LUNA_ACCENT);
+
+            List<LaunchProfile> profiles = CodexModelSwitcherSettings.getInstance().launchProfiles();
+            if (!profiles.isEmpty()) {
+                addSection(sections, "PROFILES");
+                for (LaunchProfile profile : profiles) {
+                    addCard(sections,
+                        new CardButton(profile.name, null, "»", PICKER_ACCENT,
+                            () -> CodexWorkflow.launchProfile(project, profile), null));
+                }
+            }
 
             addSection(sections, "OPTIONS");
             addCard(sections,
