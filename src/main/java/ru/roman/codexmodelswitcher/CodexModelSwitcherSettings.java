@@ -8,6 +8,10 @@ import com.intellij.openapi.components.Storage;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 @Service(Service.Level.APP)
 @State(name = "CodexModelSwitcher", storages = @Storage("codex-model-switcher.xml"))
 public final class CodexModelSwitcherSettings implements PersistentStateComponent<CodexModelSwitcherSettings.Data> {
@@ -90,6 +94,14 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         }
     }
 
+    public List<LaunchProfile> launchProfiles() {
+        return Collections.unmodifiableList(data.launchProfiles);
+    }
+
+    public void setLaunchProfiles(List<LaunchProfile> profiles) {
+        data.launchProfiles = new ArrayList<>(profiles);
+    }
+
     public String lastThreadId() {
         return data.lastThreadId;
     }
@@ -153,6 +165,12 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         if (data.lastPresetId == null || data.lastPresetId.isBlank()) {
             data.lastPresetId = ModelPreset.PresetId.TERRA_MEDIUM.name();
         }
+        if (data.launchProfiles == null) {
+            data.launchProfiles = new ArrayList<>();
+        }
+        data.launchProfiles.removeIf(profile -> profile == null
+                || !LaunchProfile.isValidName(profile.name)
+                || !LaunchProfile.isValidArguments(profile.arguments));
     }
 
     public static final class Data {
@@ -173,5 +191,6 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         public String lunaMaxShortcut = "4";
         public String lastThreadId;
         public String lastPresetId = ModelPreset.PresetId.TERRA_MEDIUM.name();
+        public List<LaunchProfile> launchProfiles = new ArrayList<>();
     }
 }
