@@ -32,7 +32,6 @@ import java.util.EnumMap;
 import java.util.Map;
 
 public final class CodexModelToolWindowFactory implements ToolWindowFactory {
-    private static final Color SERVER_ACCENT = new JBColor(new Color(0x2E8B57), new Color(0x63D471));
     private static final Color CHAT_ACCENT = new JBColor(new Color(0x356CCB), new Color(0x5B8DEF));
     private static final Color PICKER_ACCENT = new JBColor(new Color(0x7652B8), new Color(0xA77BDF));
     private static final Color TERRA_ACCENT = new JBColor(new Color(0x4A9B5F), new Color(0x72CF78));
@@ -81,9 +80,7 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
     private static final class ToolWindowPanel extends JBPanel<ToolWindowPanel> implements Disposable {
         private final Project project;
         private final Timer statusTimer;
-        private CardButton serverCard;
         private final Map<ModelPreset.PresetId, CardButton> modelCards = new EnumMap<>(ModelPreset.PresetId.class);
-        private Boolean lastConnected;
         private ModelPreset.PresetId lastSelectedPreset;
 
         private ToolWindowPanel(Project project) {
@@ -101,7 +98,6 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
         private void rebuild() {
             removeAll();
             modelCards.clear();
-            lastConnected = null;
             lastSelectedPreset = null;
 
             JPanel sections = new JPanel();
@@ -110,11 +106,6 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             sections.setOpaque(false);
 
             addSection(sections, "ACTIONS");
-            serverCard = new CardButton("Server", "Offline", "≡", SERVER_ACCENT, () -> {
-                serverCard.setSubtitle("Starting…");
-                CodexWorkflow.startServer(project);
-            }, null);
-            addCard(sections, serverCard);
             addCard(sections,
                 new CardButton("New chat", null, "+", CHAT_ACCENT, () -> CodexWorkflow.startNewChat(project), null));
             addCard(sections,
@@ -159,17 +150,11 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
         }
 
         private void refreshState() {
-            if (serverCard == null) {
-                return;
-            }
-            boolean connected = CodexAppServerClient.getInstance().isConnected();
             ModelPreset.PresetId currentPreset = CodexWorkflow.lastPresetId();
-            if (Boolean.valueOf(connected).equals(lastConnected) && currentPreset == lastSelectedPreset) {
+            if (currentPreset == lastSelectedPreset) {
                 return;
             }
-            lastConnected = connected;
             lastSelectedPreset = currentPreset;
-            serverCard.setSubtitle(connected ? "Online" : "Offline");
             for (Map.Entry<ModelPreset.PresetId, CardButton> entry : modelCards.entrySet()) {
                 // A model action performs its own connection/readiness check and
                 // can start the local server when it is offline. Keeping the
