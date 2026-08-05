@@ -164,6 +164,23 @@ final class CodexWorkflow {
         }
     }
 
+    static void launchProfile(Project project, LaunchProfile profile) {
+        try {
+            LaunchProfile.requireName(profile.name);
+            LaunchProfile.requireArguments(profile.arguments);
+            String directory = project.getBasePath() == null ? System.getProperty("user.dir") : project.getBasePath();
+            StringBuilder command = new StringBuilder(CodexUtils.shellQuote(CodexUtils.codexExecutable().toString()));
+            for (String token : CodexUtils.tokenizeArguments(profile.arguments)) {
+                command.append(' ').append(CodexUtils.shellQuote(token));
+            }
+            ShellTerminalWidget terminal = TerminalView.getInstance(project)
+                    .createLocalShellWidget(directory, "Codex — " + profile.name, true, true);
+            terminal.executeCommand(command.toString());
+        } catch (IOException error) {
+            CodexNotifications.error(project, "Could not launch the profile", CodexUtils.userMessage(error));
+        }
+    }
+
     private static String authEnvironmentPrefix() {
         Path tokenFile = CodexServerStarter.getInstance().authTokenFile();
         if (tokenFile == null) {
