@@ -114,10 +114,10 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
                     null));
 
             addSection(sections, "MODELS");
-            addModelCard(sections, ModelPreset.PresetId.TERRA_MEDIUM, "T", TERRA_ACCENT);
-            addModelCard(sections, ModelPreset.PresetId.TERRA_XHIGH, "T", TERRA_XHIGH_ACCENT);
-            addModelCard(sections, ModelPreset.PresetId.SOL_XHIGH, "S", SOL_ACCENT);
-            addModelCard(sections, ModelPreset.PresetId.LUNA_MAX, "L", LUNA_ACCENT);
+            addModelCard(sections, ModelPreset.PresetId.TERRA_MEDIUM, "▲", TERRA_ACCENT);
+            addModelCard(sections, ModelPreset.PresetId.TERRA_XHIGH, "▲", TERRA_XHIGH_ACCENT);
+            addModelCard(sections, ModelPreset.PresetId.SOL_XHIGH, "●", SOL_ACCENT);
+            addModelCard(sections, ModelPreset.PresetId.LUNA_MAX, "◆", LUNA_ACCENT);
 
             List<LaunchProfile> profiles = CodexModelSwitcherSettings.getInstance().launchProfiles();
             if (!profiles.isEmpty()) {
