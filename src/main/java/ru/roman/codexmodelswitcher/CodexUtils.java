@@ -83,6 +83,6 @@ final class CodexUtils {
     static String pluginVersion() {
         PluginId pluginId = PluginId.getId("ru.roman.codexmodelswitcher");
         PluginDescriptor plugin = PluginManagerCore.getPlugin(pluginId);
-        return plugin != null && plugin.getVersion() != null ? plugin.getVersion() : "0.9.0";
+        return plugin != null && plugin.getVersion() != null ? plugin.getVersion() : "1.0.0";
     }
 }
