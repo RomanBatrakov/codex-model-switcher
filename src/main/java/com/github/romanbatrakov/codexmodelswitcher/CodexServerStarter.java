@@ -5,8 +5,8 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
-import org.jetbrains.plugins.terminal.ShellTerminalWidget;
-import org.jetbrains.plugins.terminal.TerminalView;
+import com.intellij.terminal.ui.TerminalWidget;
+import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -35,7 +35,7 @@ public final class CodexServerStarter implements Disposable {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int PORT_PROBE_TIMEOUT_MILLIS = 300;
 
-    private ShellTerminalWidget serverTerminal;
+    private TerminalWidget serverTerminal;
     private Path authTokenFile;
     private String authToken;
 
@@ -82,7 +82,7 @@ public final class CodexServerStarter implements Disposable {
         }
         if (serverTerminal != null) {
             try {
-                serverTerminal.close();
+                serverTerminal.dispose();
             } catch (RuntimeException ignored) {
                 // The old terminal may already have been closed by the user.
             }
@@ -93,17 +93,18 @@ public final class CodexServerStarter implements Disposable {
         authToken = newAuthToken;
         try {
             String directory = project.getBasePath() == null ? System.getProperty("user.dir") : project.getBasePath();
-            serverTerminal = TerminalView.getInstance(project).createLocalShellWidget(directory, "Codex Server");
-            serverTerminal.executeCommand(CodexUtils.shellQuote(codexExecutable.toString())
+            serverTerminal = TerminalToolWindowManager.getInstance(project)
+                    .createNewSession(directory, "Codex Server", null, true, true);
+            serverTerminal.sendCommandToExecute(CodexUtils.shellQuote(codexExecutable.toString())
                     + " app-server --listen "
                     + CodexUtils.shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
                     + " --ws-auth capability-token --ws-token-file "
                     + CodexUtils.shellQuote(authTokenFile.toString()));
             return true;
-        } catch (IOException | RuntimeException error) {
+        } catch (RuntimeException error) {
             if (serverTerminal != null) {
                 try {
-                    serverTerminal.close();
+                    serverTerminal.dispose();
                 } catch (RuntimeException ignored) {
                     // The terminal may already have been closed by the IDE.
                 }
@@ -368,14 +369,14 @@ public final class CodexServerStarter implements Disposable {
     /** Closes the server's terminal (if this instance opened one) and deletes its token file. */
     @Override
     public void dispose() {
-        ShellTerminalWidget terminal;
+        TerminalWidget terminal;
         synchronized (this) {
             terminal = serverTerminal;
             serverTerminal = null;
             deleteAuthTokenFile();
         }
         if (terminal != null) {
-            ApplicationManager.getApplication().invokeLater(terminal::close);
+            ApplicationManager.getApplication().invokeLater(terminal::dispose);
         }
     }
 }

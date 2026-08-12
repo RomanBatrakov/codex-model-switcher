@@ -2,8 +2,8 @@ package com.github.romanbatrakov.codexmodelswitcher;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
-import org.jetbrains.plugins.terminal.ShellTerminalWidget;
-import org.jetbrains.plugins.terminal.TerminalView;
+import com.intellij.terminal.ui.TerminalWidget;
+import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -143,9 +143,9 @@ final class CodexWorkflow {
                     + " --remote " + CodexUtils.shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
                     + remoteAuthOption()
                     + " resume " + CodexUtils.shellQuote(thread.id());
-            ShellTerminalWidget terminal = TerminalView.getInstance(project)
-                    .createLocalShellWidget(directory, "Codex — " + thread.shortId(), true, true);
-            terminal.executeCommand(command);
+            TerminalWidget terminal = TerminalToolWindowManager.getInstance(project)
+                    .createNewSession(directory, "Codex — " + thread.shortId(), null, true, true);
+            terminal.sendCommandToExecute(command);
         } catch (IOException error) {
             CodexNotifications.error(project, "Could not open the chat in a terminal", CodexUtils.userMessage(error));
         }
@@ -161,9 +161,9 @@ final class CodexWorkflow {
                     + remoteAuthOption()
                     + " --model " + CodexUtils.shellQuote(preset.model())
                     + " -c " + CodexUtils.shellQuote("model_reasoning_effort=\"" + preset.effort() + "\"");
-            ShellTerminalWidget terminal = TerminalView.getInstance(project)
-                    .createLocalShellWidget(directory, "Codex — new chat", true, true);
-            terminal.executeCommand(command);
+            TerminalWidget terminal = TerminalToolWindowManager.getInstance(project)
+                    .createNewSession(directory, "Codex — new chat", null, true, true);
+            terminal.sendCommandToExecute(command);
         } catch (IOException error) {
             CodexNotifications.error(project, "Could not open a new chat", CodexUtils.userMessage(error));
         }
@@ -178,9 +178,9 @@ final class CodexWorkflow {
             for (String token : CodexUtils.tokenizeArguments(profile.arguments)) {
                 command.append(' ').append(CodexUtils.shellQuote(token));
             }
-            ShellTerminalWidget terminal = TerminalView.getInstance(project)
-                    .createLocalShellWidget(directory, "Codex — " + profile.name, true, true);
-            terminal.executeCommand(command.toString());
+            TerminalWidget terminal = TerminalToolWindowManager.getInstance(project)
+                    .createNewSession(directory, "Codex — " + profile.name, null, true, true);
+            terminal.sendCommandToExecute(command.toString());
         } catch (IOException error) {
             CodexNotifications.error(project, "Could not launch the profile", CodexUtils.userMessage(error));
         }
