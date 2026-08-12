@@ -9,19 +9,31 @@
   <depends>org.jetbrains.plugins.terminal</depends>
 
   <description><![CDATA[
-    <p>Switches the model and reasoning effort of all active <a href="https://github.com/openai/codex">Codex CLI</a>
-    chats through a local Codex app server, and lets you run custom Codex launch profiles from a tool window
-    without typing shell commands.</p>
-    <ul>
-      <li>One-click (or keyboard shortcut) switching between configurable model/reasoning presets</li>
-      <li>Open or resume a saved Codex chat from an integrated terminal</li>
-      <li>Custom launch profiles for Codex CLI flags outside the plugin's model presets (e.g. <code>--profile</code>)</li>
-    </ul>
-    <p><b>Requirements:</b> macOS only, with the Codex CLI installed at <code>/opt/homebrew/bin/codex</code> or
+    <p>A tool window for <a href="https://github.com/openai/codex">Codex CLI</a>: switch the model and reasoning
+    effort of every active chat in one click, jump straight to a saved chat, and launch your own Codex profiles
+    &mdash; without leaving the IDE or typing shell commands.</p>
+
+    <h3>Model presets</h3>
+    <p>Four configurable model/reasoning slots, each with its own keyboard shortcut. Switching a preset updates
+    every currently open Codex chat at once through the local Codex app server.</p>
+
+    <h3>Chats</h3>
+    <p>Open a new chat with the current preset, or pick any saved chat from a searchable list and resume it in an
+    integrated terminal.</p>
+
+    <h3>Launch profiles</h3>
+    <p>For anything outside the model presets &mdash; a named Codex CLI profile, a non-default flag combination,
+    whatever <code>~/.codex/config.toml</code> knows about &mdash; add a launch profile in Settings: give it a
+    name and the extra arguments to pass (for example <code>--profile my-profile</code>). It shows up as its own
+    button in the tool window; clicking it runs <code>codex &lt;your arguments&gt;</code> in a new terminal, the
+    same way you'd type it by hand.</p>
+
+    <h3>Requirements</h3>
+    <p>macOS only, with the Codex CLI installed at <code>/opt/homebrew/bin/codex</code> or
     <code>/usr/local/bin/codex</code>. The plugin only ever launches that local, verified executable and never
     sends keystrokes to the editor.</p>
-    <p>This plugin is an independent tool built to work with Codex CLI. It is not affiliated with or endorsed by
-    OpenAI.</p>
+
+    <p><i>Independent tool built to work with Codex CLI. Not affiliated with or endorsed by OpenAI.</i></p>
   ]]></description>
 
   <change-notes><![CDATA[
@@ -41,7 +53,7 @@
     <applicationService serviceImplementation="com.github.romanbatrakov.codexmodelswitcher.CodexServerStarter"/>
     <applicationService serviceImplementation="com.github.romanbatrakov.codexmodelswitcher.CodexKeyboardShortcutService"/>
     <postStartupActivity implementation="com.github.romanbatrakov.codexmodelswitcher.CodexKeyboardShortcutStartupActivity"/>
-    <toolWindow id="Codex Models"
+    <toolWindow id="Model Switcher"
                 anchor="right"
                 factoryClass="com.github.romanbatrakov.codexmodelswitcher.CodexModelToolWindowFactory"/>
     <notificationGroup id="Codex Model Switcher" displayType="BALLOON" isLogByDefault="false"/>

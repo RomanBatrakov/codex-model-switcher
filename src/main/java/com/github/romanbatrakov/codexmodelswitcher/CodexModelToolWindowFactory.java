@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Builds the "Codex Models" tool window: quick actions, the four model
+ * Builds the "Model Switcher" tool window: quick actions, the four model
  * presets, any configured launch profiles, and a link into Settings.
  */
 public final class CodexModelToolWindowFactory implements ToolWindowFactory {

@@ -60,7 +60,7 @@ final class CodexSettingsDialog extends DialogWrapper {
             profilesTableModel.addRow(new Object[]{profile.name, profile.arguments});
         }
         profilesTable = new JBTable(profilesTableModel);
-        setTitle("Codex Model Switcher Settings");
+        setTitle("Model Switcher for Codex CLI Settings");
         init();
     }
 
