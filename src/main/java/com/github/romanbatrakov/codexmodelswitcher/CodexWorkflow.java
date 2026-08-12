@@ -6,10 +6,8 @@ import org.jetbrains.plugins.terminal.ShellTerminalWidget;
 import org.jetbrains.plugins.terminal.TerminalView;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -128,7 +126,7 @@ final class CodexWorkflow {
                                     () -> { },
                                     CompletableFuture.delayedExecutor(200, TimeUnit.MILLISECONDS)
                             )
-                            .thenCompose(nextAttempt -> waitForServer(attemptsLeft - 1));
+                            .thenCompose(_ -> waitForServer(attemptsLeft - 1));
                 })
                 .thenCompose(Function.identity());
     }

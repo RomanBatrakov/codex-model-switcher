@@ -1,7 +1,5 @@
 package com.github.romanbatrakov.codexmodelswitcher;
 
-import com.google.gson.JsonObject;
-
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -17,14 +15,6 @@ record CodexThread(String id, String name, String preview, long updatedAt) {
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("dd.MM HH:mm")
             .withZone(ZoneId.systemDefault());
-
-    static CodexThread fromJson(JsonObject value) {
-        String id = value.get("id").getAsString();
-        String name = optionalString(value, "name");
-        String preview = optionalString(value, "preview");
-        long updatedAt = value.has("updatedAt") ? value.get("updatedAt").getAsLong() : 0L;
-        return new CodexThread(id, name, preview, updatedAt);
-    }
 
     String displayName() {
         String headline = name == null || name.isBlank() ? preview : name;
@@ -56,9 +46,5 @@ record CodexThread(String id, String name, String preview, long updatedAt) {
 
     private static boolean matches(String value, String normalizedQuery) {
         return value != null && value.toLowerCase(Locale.ROOT).contains(normalizedQuery);
-    }
-
-    private static String optionalString(JsonObject value, String name) {
-        return value.has(name) && !value.get(name).isJsonNull() ? value.get(name).getAsString() : null;
     }
 }

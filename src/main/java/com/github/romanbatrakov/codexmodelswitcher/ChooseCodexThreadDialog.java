@@ -8,7 +8,7 @@ import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBPanel;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextField;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 
 /** Modal picker for choosing (and optionally refreshing) a saved Codex chat, with live search-as-you-type. */
 final class ChooseCodexThreadDialog extends DialogWrapper {
@@ -68,7 +67,7 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
     }
 
     @Override
-    protected @Nullable JComponent createCenterPanel() {
+    protected @NonNull JComponent createCenterPanel() {
         JPanel panel = new JBPanel<>(new BorderLayout(0, 8));
         panel.setPreferredSize(new Dimension(680, 460));
         JPanel searchPanel = new JBPanel<>(new GridLayout(0, 1, 0, 4));

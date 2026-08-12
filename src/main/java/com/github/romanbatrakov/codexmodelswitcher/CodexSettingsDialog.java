@@ -7,7 +7,7 @@ import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBPanel;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.table.JBTable;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -65,7 +65,7 @@ final class CodexSettingsDialog extends DialogWrapper {
     }
 
     @Override
-    protected @Nullable JComponent createCenterPanel() {
+    protected @NonNull JComponent createCenterPanel() {
         JPanel panel = new JBPanel<>(new BorderLayout(0, 12));
         panel.setPreferredSize(new Dimension(720, 480));
 
@@ -94,8 +94,8 @@ final class CodexSettingsDialog extends DialogWrapper {
         JPanel profilesSection = new JBPanel<>(new BorderLayout(0, 4));
         profilesSection.add(new JBLabel("Launch profiles:"), BorderLayout.NORTH);
         JPanel profilesPanel = ToolbarDecorator.createDecorator(profilesTable)
-                .setAddAction(button -> profilesTableModel.addRow(new Object[]{"", ""}))
-                .setRemoveAction(button -> {
+                .setAddAction(_ -> profilesTableModel.addRow(new Object[]{"", ""}))
+                .setRemoveAction(_ -> {
                     if (profilesTable.isEditing()) {
                         profilesTable.getCellEditor().stopCellEditing();
                     }

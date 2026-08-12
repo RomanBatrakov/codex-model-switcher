@@ -107,7 +107,7 @@ public final class CodexAppServerClient implements Disposable {
             // socket. Keep model changes ordered and let the next click run
             // even when the previous one failed.
             modelUpdateTail = modelUpdateTail
-                    .handle((ignored, error) -> null)
+                    .handle((ignored, _) -> null)
                     .thenCompose(ignored -> updateAllThreadSettingsNow(preset));
             return modelUpdateTail;
         }
@@ -415,7 +415,7 @@ public final class CodexAppServerClient implements Disposable {
         });
         CompletableFuture<JsonObject> timedResponse =
             response.orTimeout(REQUEST_TIMEOUT.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
-        timedResponse.whenComplete((ignored, failure) -> pendingRequests.remove(id, response));
+        timedResponse.whenComplete((ignored, _) -> pendingRequests.remove(id, response));
         return timedResponse;
     }
 
@@ -510,11 +510,6 @@ public final class CodexAppServerClient implements Disposable {
     /** Buffers and dispatches incoming JSON-RPC frames, and clears request state on disconnect. */
     private final class ServerListener implements WebSocket.Listener {
         private final StringBuilder textBuffer = new StringBuilder();
-
-        @Override
-        public void onOpen(WebSocket webSocket) {
-            webSocket.request(1);
-        }
 
         /** Reassembles a (possibly multi-frame) text message and hands it to {@link #processMessage}. */
         @Override

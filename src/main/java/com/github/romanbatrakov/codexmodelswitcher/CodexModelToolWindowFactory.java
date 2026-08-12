@@ -192,7 +192,7 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
     /** A flat, icon-badge button used for every row in the tool window (actions, models, profiles, settings). */
     private static final class CardButton extends JButton {
         private final String title;
-        private String subtitle;
+        private final String subtitle;
         private final String glyph;
         private final Color accent;
         private final String shortcut;
@@ -216,12 +216,6 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             setMinimumSize(new Dimension(0, height));
             setMaximumSize(new Dimension(Integer.MAX_VALUE, height));
             addActionListener(ignored -> action.run());
-        }
-
-        private void setSubtitle(String subtitle) {
-            this.subtitle = subtitle;
-            setToolTipText(title + " — " + subtitle);
-            repaint();
         }
 
         private void setHighlighted(boolean selected) {
