@@ -7,9 +7,7 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
-import com.intellij.openapi.project.ProjectUtil;
 
-import javax.swing.JComponent;
 import java.awt.Component;
 import java.awt.KeyboardFocusManager;
 import java.awt.KeyEventDispatcher;
@@ -132,9 +130,6 @@ public final class CodexKeyboardShortcutService implements Disposable {
             Project project = CommonDataKeys.PROJECT.getData(DataManager.getInstance().getDataContext(component));
             if (project != null) {
                 return project;
-            }
-            if (component instanceof JComponent swingComponent) {
-                return ProjectUtil.guessCurrentProject(swingComponent);
             }
         } catch (RuntimeException ignored) {
             // Some transient terminal components do not expose a data context.
