@@ -47,3 +47,13 @@ if (signingCertificateChain.exists() && signingPrivateKey.exists()) {
         privateKeyFile.set(signingPrivateKey)
     }
 }
+
+// Marketplace permanent token, also kept outside version control (see
+// .gitignore). Lets a release ship via `./gradlew publishPlugin` instead of
+// the manual web upload form.
+val publishTokenFile = file("signing/publish_token.txt")
+if (publishTokenFile.exists()) {
+    tasks.publishPlugin {
+        token.set(publishTokenFile.readText().trim())
+    }
+}
