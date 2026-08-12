@@ -9,14 +9,6 @@ final class CodexNotifications {
     private CodexNotifications() {
     }
 
-    static void info(Project project, String title, String content) {
-        notify(project, title, content, NotificationType.INFORMATION);
-    }
-
-    static void warning(Project project, String title, String content) {
-        notify(project, title, content, NotificationType.WARNING);
-    }
-
     static void error(Project project, String title, String content) {
         notify(project, title, content, NotificationType.ERROR);
     }

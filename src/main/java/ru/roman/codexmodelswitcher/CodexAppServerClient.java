@@ -66,13 +66,6 @@ public final class CodexAppServerClient implements Disposable {
         return ensureConnected();
     }
 
-    public boolean isConnected() {
-        CompletableFuture<Void> currentConnection = connection;
-        return socket != null && CodexModelSwitcherSettings.getInstance().serverUrl().equals(connectedEndpoint) &&
-            currentConnection != null && currentConnection.isDone() && !currentConnection.isCompletedExceptionally() &&
-            !currentConnection.isCancelled();
-    }
-
     public CompletableFuture<List<CodexThread>> listThreads() {
         // The app-server's historical thread/list endpoint can become very slow
         // when ~/.codex/sessions contains large transcripts. The picker only
