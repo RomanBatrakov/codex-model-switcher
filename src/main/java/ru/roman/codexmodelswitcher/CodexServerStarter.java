@@ -257,6 +257,43 @@ public final class CodexServerStarter implements Disposable {
         return Path.of(PathManager.getSystemPath(), "codex-model-switcher");
     }
 
+    /**
+     * Unlike the OS temp directory, nothing else ever cleans this directory
+     * up, so a token file whose owning process died without running
+     * {@link #dispose()} (IDE crash, force quit) would sit there forever.
+     * Run on every fresh server start: a file is safe to delete only if no
+     * currently running app-server process references it in its command
+     * line -- that's the same signal restoreTokenFromRunningServer() uses to
+     * recognize a live server, just inverted.
+     */
+    private static void cleanupStaleTokenFiles(Path directory) {
+        try (var files = Files.list(directory)) {
+            List<Path> candidates = files
+                    .filter(path -> {
+                        String name = path.getFileName().toString();
+                        return name.startsWith("codex-model-switcher-") && name.endsWith(".token");
+                    })
+                    .toList();
+            if (candidates.isEmpty()) {
+                return;
+            }
+            List<String> liveCommandLines = ProcessHandle.allProcesses()
+                    .map(process -> process.info().commandLine().orElse(""))
+                    .filter(commandLine -> commandLine.contains("app-server"))
+                    .toList();
+            for (Path candidate : candidates) {
+                String candidatePath = candidate.toString();
+                boolean referenced = liveCommandLines.stream().anyMatch(commandLine -> commandLine.contains(candidatePath));
+                if (!referenced) {
+                    deleteQuietly(candidate);
+                }
+            }
+        } catch (IOException | RuntimeException ignored) {
+            // Best-effort housekeeping; leftover token files are harmless
+            // small owner-only files, not a correctness issue.
+        }
+    }
+
     private static Path createAuthTokenFile() throws IOException {
         Path directory = tokenDirectory();
         Files.createDirectories(directory);
@@ -268,6 +305,7 @@ public final class CodexServerStarter implements Disposable {
         } catch (UnsupportedOperationException ignored) {
             // Best-effort on file systems without POSIX permissions.
         }
+        cleanupStaleTokenFiles(directory);
         Path tokenFile = Files.createTempFile(directory, "codex-model-switcher-", ".token");
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes());
         Files.writeString(tokenFile, token, StandardCharsets.UTF_8);
