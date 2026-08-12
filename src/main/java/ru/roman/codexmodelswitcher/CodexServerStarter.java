@@ -8,6 +8,9 @@ import org.jetbrains.plugins.terminal.ShellTerminalWidget;
 import org.jetbrains.plugins.terminal.TerminalView;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.Files;
@@ -22,6 +25,7 @@ import java.security.SecureRandom;
 public final class CodexServerStarter implements Disposable {
     static final String AUTH_TOKEN_ENV = "CODEX_MODEL_SWITCHER_TOKEN";
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final int PORT_PROBE_TIMEOUT_MILLIS = 300;
 
     private ShellTerminalWidget serverTerminal;
     private Path authTokenFile;
@@ -32,7 +36,21 @@ public final class CodexServerStarter implements Disposable {
     }
 
     public synchronized boolean start(Project project) throws IOException {
-        CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
+        URI endpoint = CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
+        if (isPortOccupied(endpoint)) {
+            // Something is already listening -- most likely this plugin's own
+            // server from an earlier session that this window lost track of.
+            // Starting a second app-server on the same port would just crash
+            // with "Address already in use"; try to adopt the existing one
+            // instead of blindly spawning a duplicate.
+            restoreTokenFromRunningServer();
+            if (authToken != null && authTokenFile != null && Files.isRegularFile(authTokenFile)) {
+                return true;
+            }
+            throw new IOException("Port " + endpoint.getPort() + " on " + endpoint.getHost()
+                    + " is already in use by another process. Stop it or change the app-server address in "
+                    + "Settings, then try again.");
+        }
         Path codexExecutable = CodexUtils.codexExecutable();
         Path newAuthTokenFile = createAuthTokenFile();
         String newAuthToken;
@@ -120,6 +138,15 @@ public final class CodexServerStarter implements Disposable {
         } catch (IOException | RuntimeException ignored) {
             // If process inspection is unavailable, the normal server-start
             // path still reports the connection error to the user.
+        }
+    }
+
+    private static boolean isPortOccupied(URI endpoint) {
+        try (Socket probe = new Socket()) {
+            probe.connect(new InetSocketAddress(endpoint.getHost(), endpoint.getPort()), PORT_PROBE_TIMEOUT_MILLIS);
+            return true;
+        } catch (IOException ignored) {
+            return false;
         }
     }
 
