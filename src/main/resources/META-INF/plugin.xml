@@ -1,6 +1,6 @@
 <idea-plugin>
   <version>1.0.0</version>
-  <id>ru.roman.codexmodelswitcher</id>
+  <id>com.github.romanbatrakov.codexmodelswitcher</id>
   <name>Model Switcher for Codex CLI</name>
   <vendor email="batrakov.r.v@gmail.com" url="https://github.com/RomanBatrakov">Roman</vendor>
 
@@ -36,50 +36,50 @@
   ]]></change-notes>
 
   <extensions defaultExtensionNs="com.intellij">
-    <applicationService serviceImplementation="ru.roman.codexmodelswitcher.CodexModelSwitcherSettings"/>
-    <applicationService serviceImplementation="ru.roman.codexmodelswitcher.CodexAppServerClient"/>
-    <applicationService serviceImplementation="ru.roman.codexmodelswitcher.CodexServerStarter"/>
-    <applicationService serviceImplementation="ru.roman.codexmodelswitcher.CodexKeyboardShortcutService"/>
-    <postStartupActivity implementation="ru.roman.codexmodelswitcher.CodexKeyboardShortcutStartupActivity"/>
+    <applicationService serviceImplementation="com.github.romanbatrakov.codexmodelswitcher.CodexModelSwitcherSettings"/>
+    <applicationService serviceImplementation="com.github.romanbatrakov.codexmodelswitcher.CodexAppServerClient"/>
+    <applicationService serviceImplementation="com.github.romanbatrakov.codexmodelswitcher.CodexServerStarter"/>
+    <applicationService serviceImplementation="com.github.romanbatrakov.codexmodelswitcher.CodexKeyboardShortcutService"/>
+    <postStartupActivity implementation="com.github.romanbatrakov.codexmodelswitcher.CodexKeyboardShortcutStartupActivity"/>
     <toolWindow id="Codex Models"
                 anchor="right"
-                factoryClass="ru.roman.codexmodelswitcher.CodexModelToolWindowFactory"/>
+                factoryClass="com.github.romanbatrakov.codexmodelswitcher.CodexModelToolWindowFactory"/>
     <notificationGroup id="Codex Model Switcher" displayType="BALLOON" isLogByDefault="false"/>
   </extensions>
 
   <actions>
     <action id="CodexModelSwitcher.StartServer"
-            class="ru.roman.codexmodelswitcher.StartCodexServerAction"
+            class="com.github.romanbatrakov.codexmodelswitcher.StartCodexServerAction"
             text="Codex: Start model switcher server"
             description="Starts a local Codex app server on this Mac">
       <add-to-group group-id="ToolsMenu" anchor="last"/>
     </action>
     <action id="CodexModelSwitcher.OpenChat"
-            class="ru.roman.codexmodelswitcher.OpenCodexChatAction"
+            class="com.github.romanbatrakov.codexmodelswitcher.OpenCodexChatAction"
             text="Codex: Choose and open chat"
             description="Choose and open a saved Codex chat without changing the global model preset">
       <add-to-group group-id="ToolsMenu" anchor="last"/>
     </action>
     <action id="CodexModelSwitcher.TerraMedium"
-            class="ru.roman.codexmodelswitcher.TerraMediumAction"
+            class="com.github.romanbatrakov.codexmodelswitcher.TerraMediumAction"
             text="Codex: All chats — Terra / Medium"
             description="Set all active Codex chats to GPT-5.6 Terra with medium reasoning">
       <add-to-group group-id="ToolsMenu" anchor="last"/>
     </action>
     <action id="CodexModelSwitcher.TerraXHigh"
-            class="ru.roman.codexmodelswitcher.TerraXHighAction"
+            class="com.github.romanbatrakov.codexmodelswitcher.TerraXHighAction"
             text="Codex: All chats — Terra / XHigh"
             description="Set all active Codex chats to GPT-5.6 Terra with extra high reasoning">
       <add-to-group group-id="ToolsMenu" anchor="last"/>
     </action>
     <action id="CodexModelSwitcher.SolXHigh"
-            class="ru.roman.codexmodelswitcher.SolXHighAction"
+            class="com.github.romanbatrakov.codexmodelswitcher.SolXHighAction"
             text="Codex: All chats — Sol / XHigh"
             description="Set all active Codex chats to GPT-5.6 Sol with extra high reasoning">
       <add-to-group group-id="ToolsMenu" anchor="last"/>
     </action>
     <action id="CodexModelSwitcher.LunaMax"
-            class="ru.roman.codexmodelswitcher.LunaMaxAction"
+            class="com.github.romanbatrakov.codexmodelswitcher.LunaMaxAction"
             text="Codex: All chats — Luna / Max"
             description="Set all active Codex chats to GPT-5.6 Luna with maximum reasoning">
       <add-to-group group-id="ToolsMenu" anchor="last"/>

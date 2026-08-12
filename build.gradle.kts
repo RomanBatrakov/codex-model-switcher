@@ -3,7 +3,7 @@ plugins {
     id("org.jetbrains.intellij.platform") version "2.18.1"
 }
 
-group = "ru.roman"
+group = "com.github.romanbatrakov"
 version = "1.0.0"
 
 repositories {

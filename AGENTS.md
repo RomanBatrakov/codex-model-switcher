@@ -12,7 +12,7 @@
 - выбирать и открывать сохранённый чат;
 - работать с локальным WebSocket-адресом app-server.
 
-Основной код находится в `src/main/java/ru/roman/codexmodelswitcher`, описание плагина — в `src/main/resources/META-INF/plugin.xml`.
+Основной код находится в `src/main/java/com/github/romanbatrakov/codexmodelswitcher`, описание плагина — в `src/main/resources/META-INF/plugin.xml`.
 
 ## Ветки и релизы
 
