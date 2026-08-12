@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.github.romanbatrakov"
-version = "1.0.0"
+version = "1.1.0"
 
 repositories {
     mavenCentral()
@@ -30,6 +30,10 @@ java {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+tasks.withType<JavaCompile> {
+    options.compilerArgs.add("-Xlint:deprecation")
 }
 
 intellijPlatform {
