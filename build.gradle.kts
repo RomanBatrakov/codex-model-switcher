@@ -35,3 +35,15 @@ tasks.test {
 intellijPlatform {
     buildSearchableOptions = false
 }
+
+// Self-signed certificate for plugin signing, kept outside version control
+// (see .gitignore). Marketplace re-signs on top regardless, but a signed
+// upload avoids the "unsigned plugin" install warning.
+val signingCertificateChain = file("signing/chain.crt")
+val signingPrivateKey = file("signing/private.pem")
+if (signingCertificateChain.exists() && signingPrivateKey.exists()) {
+    tasks.signPlugin {
+        certificateChainFile.set(signingCertificateChain)
+        privateKeyFile.set(signingPrivateKey)
+    }
+}
