@@ -15,7 +15,7 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        local("/Applications/IntelliJ IDEA.app")
+        intellijIdea("2026.2.1")
         bundledPlugin("org.jetbrains.plugins.terminal")
     }
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
