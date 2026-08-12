@@ -1,7 +1,6 @@
 package com.github.romanbatrakov.codexmodelswitcher;
 
-import com.intellij.ide.plugins.PluginManagerCore;
-import com.intellij.openapi.extensions.PluginId;
+import com.intellij.ide.plugins.cl.PluginAwareClassLoader;
 import com.intellij.openapi.extensions.PluginDescriptor;
 
 import java.io.IOException;
@@ -82,8 +81,13 @@ final class CodexUtils {
     }
 
     static String pluginVersion() {
-        PluginId pluginId = PluginId.getId("com.github.romanbatrakov.codexmodelswitcher");
-        PluginDescriptor plugin = PluginManagerCore.getPlugin(pluginId);
-        return plugin != null && plugin.getVersion() != null ? plugin.getVersion() : "1.0.0";
+        ClassLoader loader = CodexUtils.class.getClassLoader();
+        if (loader instanceof PluginAwareClassLoader pluginClassLoader) {
+            PluginDescriptor plugin = pluginClassLoader.getPluginDescriptor();
+            if (plugin.getVersion() != null) {
+                return plugin.getVersion();
+            }
+        }
+        return "1.1.0";
     }
 }
