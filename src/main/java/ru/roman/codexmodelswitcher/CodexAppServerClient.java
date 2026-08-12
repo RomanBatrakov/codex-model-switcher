@@ -31,6 +31,12 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+/**
+ * WebSocket client for the local Codex app server's JSON-RPC protocol.
+ * Owns the single shared connection, tracks which threads are currently
+ * loaded, and exposes the operations the plugin needs: listing chats and
+ * updating model/reasoning settings on every active thread.
+ */
 @Service(Service.Level.APP)
 public final class CodexAppServerClient implements Disposable {
     private static final int MAX_THREAD_COUNT = 10_000;
@@ -53,6 +59,7 @@ public final class CodexAppServerClient implements Disposable {
     private volatile CompletableFuture<Void> connection;
     private volatile String connectedEndpoint;
 
+    /** Returns the application-level singleton instance. */
     public static CodexAppServerClient getInstance() {
         return ApplicationManager.getApplication().getService(CodexAppServerClient.class);
     }
@@ -66,14 +73,25 @@ public final class CodexAppServerClient implements Disposable {
         return ensureConnected();
     }
 
+    /**
+     * Reads saved chats directly from local session transcript files rather
+     * than the app server's {@code thread/list} endpoint, which can become
+     * very slow when {@code ~/.codex/sessions} contains large transcripts.
+     * Only the stable id and a short preview are needed here, both available
+     * in the first records of each local JSONL session file.
+     */
     public CompletableFuture<List<CodexThread>> listThreads() {
-        // The app-server's historical thread/list endpoint can become very slow
-        // when ~/.codex/sessions contains large transcripts. The picker only
-        // needs the stable id and a short preview, which are available in the
-        // first records of each local JSONL session file.
         return CompletableFuture.supplyAsync(this::listThreadsFromDisk);
     }
 
+    /**
+     * Applies {@code preset}'s model and reasoning effort to every thread the
+     * app server currently has loaded, plus the last-opened thread. Calls are
+     * serialized through {@link #modelUpdateTail} so overlapping clicks don't
+     * race on the same socket.
+     *
+     * @param preset the model/effort to apply; must not be null
+     */
     public CompletableFuture<Void> updateAllThreadSettings(ModelPreset preset) {
         if (preset == null) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("No model preset was specified."));
@@ -482,12 +500,14 @@ public final class CodexAppServerClient implements Disposable {
         }
     }
 
+    /** Closes the socket and fails any in-flight requests when the plugin/IDE shuts down. */
     @Override
     public void dispose() {
         liveThreadIds.clear();
         closeSocket();
     }
 
+    /** Buffers and dispatches incoming JSON-RPC frames, and clears request state on disconnect. */
     private final class ServerListener implements WebSocket.Listener {
         private final StringBuilder textBuffer = new StringBuilder();
 
@@ -496,6 +516,7 @@ public final class CodexAppServerClient implements Disposable {
             webSocket.request(1);
         }
 
+        /** Reassembles a (possibly multi-frame) text message and hands it to {@link #processMessage}. */
         @Override
         public CompletableFuture<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
             if (data.length() > MAX_TEXT_MESSAGE_LENGTH - textBuffer.length()) {
@@ -519,6 +540,7 @@ public final class CodexAppServerClient implements Disposable {
             return CompletableFuture.completedFuture(null);
         }
 
+        /** Clears the dead socket reference and fails any requests still awaiting a response. */
         @Override
         public CompletableFuture<?> onClose(WebSocket webSocket, int statusCode, String reason) {
             if (socket == webSocket) {
@@ -528,6 +550,7 @@ public final class CodexAppServerClient implements Disposable {
             return CompletableFuture.completedFuture(null);
         }
 
+        /** Same cleanup as {@link #onClose}, triggered by a transport-level failure instead. */
         @Override
         public void onError(WebSocket webSocket, Throwable error) {
             if (socket == webSocket) {

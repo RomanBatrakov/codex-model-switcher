@@ -19,18 +19,25 @@ import java.awt.event.KeyEvent;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Installs a global AWT key hook so Ctrl+&lt;digit&gt; switches the matching
+ * model preset from anywhere in the IDE, including inside the terminal,
+ * where a regular IntelliJ action shortcut would not otherwise fire.
+ */
 @Service(Service.Level.APP)
 public final class CodexKeyboardShortcutService implements Disposable {
     private final KeyEventDispatcher dispatcher = this::dispatch;
     private final KeyEventPostProcessor postProcessor = this::postProcess;
     private final Set<Integer> suppressedKeyCodes = ConcurrentHashMap.newKeySet();
 
+    /** Registers the key event hooks with the current {@link KeyboardFocusManager}. */
     public CodexKeyboardShortcutService() {
         KeyboardFocusManager focusManager = KeyboardFocusManager.getCurrentKeyboardFocusManager();
         focusManager.addKeyEventDispatcher(dispatcher);
         focusManager.addKeyEventPostProcessor(postProcessor);
     }
 
+    /** Returns the application-level singleton instance. */
     public static CodexKeyboardShortcutService getInstance() {
         return ApplicationManager.getApplication().getService(CodexKeyboardShortcutService.class);
     }
@@ -139,6 +146,7 @@ public final class CodexKeyboardShortcutService implements Disposable {
         return null;
     }
 
+    /** Unregisters the key event hooks so they don't leak past the plugin/IDE lifecycle. */
     @Override
     public void dispose() {
         KeyboardFocusManager focusManager = KeyboardFocusManager.getCurrentKeyboardFocusManager();

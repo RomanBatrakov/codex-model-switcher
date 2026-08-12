@@ -5,6 +5,7 @@ import com.intellij.notification.NotificationType;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 
+/** Thin wrapper around the IDE notification balloon API for this plugin's notification group. */
 final class CodexNotifications {
     private CodexNotifications() {
     }

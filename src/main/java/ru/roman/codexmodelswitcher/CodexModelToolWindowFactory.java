@@ -32,6 +32,10 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Builds the "Codex Models" tool window: quick actions, the four model
+ * presets, any configured launch profiles, and a link into Settings.
+ */
 public final class CodexModelToolWindowFactory implements ToolWindowFactory {
     private static final Color CHAT_ACCENT = new JBColor(new Color(0x356CCB), new Color(0x5B8DEF));
     private static final Color PICKER_ACCENT = new JBColor(new Color(0x7652B8), new Color(0xA77BDF));
@@ -40,6 +44,7 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
     private static final Color SOL_ACCENT = new JBColor(new Color(0xC47B24), new Color(0xF2AE4B));
     private static final Color LUNA_ACCENT = new JBColor(new Color(0x3978C5), new Color(0x70A8F0));
 
+    /** Installs a single {@link ToolWindowPanel} as this tool window's content. */
     @Override
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
         ToolWindowPanel panel = new ToolWindowPanel(project);
@@ -78,6 +83,7 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             Math.round(first.getBlue() * firstWeight + second.getBlue() * secondWeight));
     }
 
+    /** The actual tool window content: sections of {@link CardButton}s, rebuilt whenever settings change. */
     private static final class ToolWindowPanel extends JBPanel<ToolWindowPanel> implements Disposable {
         private final Project project;
         private final Timer statusTimer;
@@ -176,12 +182,14 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             }
         }
 
+        /** Stops the once-a-second preset-highlight refresh timer. */
         @Override
         public void dispose() {
             statusTimer.stop();
         }
     }
 
+    /** A flat, icon-badge button used for every row in the tool window (actions, models, profiles, settings). */
     private static final class CardButton extends JButton {
         private final String title;
         private String subtitle;

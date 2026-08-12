@@ -7,6 +7,11 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
+/**
+ * A saved Codex chat, as read from a local session transcript or reported by
+ * the app server. {@code name}/{@code preview} may both be null when a
+ * session file has no readable first message.
+ */
 record CodexThread(String id, String name, String preview, long updatedAt) {
     private static final String UUID_PATTERN =
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";

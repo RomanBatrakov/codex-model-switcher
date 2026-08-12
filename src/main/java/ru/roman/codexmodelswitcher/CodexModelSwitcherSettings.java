@@ -12,11 +12,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Persisted plugin settings: the app-server address, the four model/effort/
+ * shortcut presets, launch profiles, and small bits of last-used state used
+ * to restore the UI across restarts.
+ */
 @Service(Service.Level.APP)
 @State(name = "CodexModelSwitcher", storages = @Storage("codex-model-switcher.xml"))
 public final class CodexModelSwitcherSettings implements PersistentStateComponent<CodexModelSwitcherSettings.Data> {
     private Data data = new Data();
 
+    /** Returns the application-level singleton instance. */
     public static CodexModelSwitcherSettings getInstance() {
         return ApplicationManager.getApplication().getService(CodexModelSwitcherSettings.class);
     }
@@ -26,20 +32,24 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         return data;
     }
 
+    /** Loads previously persisted state, repairing any invalid/missing fields (see {@link #normalizeData()}). */
     @Override
     public void loadState(@NotNull Data state) {
         data = state;
         normalizeData();
     }
 
+    /** The configured local app-server WebSocket address. */
     public String serverUrl() {
         return data.serverUrl;
     }
 
+    /** Sets the app-server address, falling back to the default if the value is invalid. */
     public void setServerUrl(String serverUrl) {
         data.serverUrl = CodexServerEndpoint.normalizeOrDefault(serverUrl);
     }
 
+    /** The configured model name for the given preset slot. */
     public String model(ModelPreset.PresetId presetId) {
         return switch (presetId) {
             case TERRA_MEDIUM -> data.terraMediumModel;
@@ -49,6 +59,7 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         };
     }
 
+    /** The configured reasoning effort for the given preset slot. */
     public String effort(ModelPreset.PresetId presetId) {
         return switch (presetId) {
             case TERRA_MEDIUM -> data.terraMediumEffort;
@@ -58,6 +69,7 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         };
     }
 
+    /** The configured keyboard-shortcut digit for the given preset slot. */
     public String shortcut(ModelPreset.PresetId presetId) {
         return switch (presetId) {
             case TERRA_MEDIUM -> data.terraMediumShortcut;
@@ -67,6 +79,11 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         };
     }
 
+    /**
+     * Replaces one preset's model, effort, and shortcut together.
+     *
+     * @throws IllegalArgumentException if {@code model} or {@code effort} fails validation
+     */
     public void updatePreset(ModelPreset.PresetId presetId, String model, String effort, String shortcut) {
         String normalizedModel = ModelPreset.requireModel(model);
         String normalizedEffort = ModelPreset.requireEffort(effort);
@@ -94,14 +111,17 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         }
     }
 
+    /** The configured launch profiles, in display order; never null. */
     public List<LaunchProfile> launchProfiles() {
         return Collections.unmodifiableList(data.launchProfiles);
     }
 
+    /** Replaces the whole launch-profile list, as committed from the settings dialog. */
     public void setLaunchProfiles(List<LaunchProfile> profiles) {
         data.launchProfiles = new ArrayList<>(profiles);
     }
 
+    /** The id of the last-opened chat, used to preselect it in the chat picker. */
     public String lastThreadId() {
         return data.lastThreadId;
     }
@@ -110,6 +130,7 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         data.lastThreadId = lastThreadId;
     }
 
+    /** The preset last applied via {@code switchModel}, defaulting to Terra/Medium if unset or invalid. */
     public ModelPreset.PresetId lastPresetId() {
         try {
             return ModelPreset.PresetId.valueOf(data.lastPresetId);
@@ -173,6 +194,7 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
                 || !LaunchProfile.isValidArguments(profile.arguments));
     }
 
+    /** Plain serializable state bean for IntelliJ's {@code PersistentStateComponent} XML persistence. */
     public static final class Data {
         static final String DEFAULT_SERVER_URL = CodexServerEndpoint.DEFAULT_URL;
 

@@ -13,6 +13,7 @@ import java.util.concurrent.CompletionException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/** Small shared helpers: shell quoting, the trusted Codex executable lookup, and error formatting. */
 final class CodexUtils {
     private static final List<Path> CODEX_LOCATIONS = List.of(
             Path.of("/opt/homebrew/bin/codex"),

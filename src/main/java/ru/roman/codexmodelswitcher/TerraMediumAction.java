@@ -4,6 +4,10 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * Tools-menu action that switches every active Codex chat to the Terra /
+ * Medium preset.
+ */
 public final class TerraMediumAction extends AnAction {
     @Override
     public void actionPerformed(@NotNull AnActionEvent event) {

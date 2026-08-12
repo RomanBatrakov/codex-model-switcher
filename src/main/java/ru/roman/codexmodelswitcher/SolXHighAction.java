@@ -4,6 +4,10 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * Tools-menu action that switches every active Codex chat to the Sol /
+ * XHigh preset.
+ */
 public final class SolXHighAction extends AnAction {
     @Override
     public void actionPerformed(@NotNull AnActionEvent event) {

@@ -28,6 +28,7 @@ import java.util.function.Supplier;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
+/** Modal picker for choosing (and optionally refreshing) a saved Codex chat, with live search-as-you-type. */
 final class ChooseCodexThreadDialog extends DialogWrapper {
     private final Project project;
     private final Supplier<CompletableFuture<List<CodexThread>>> refreshSupplier;
@@ -124,6 +125,7 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
         }));
     }
 
+    /** Re-filters the visible thread list on every keystroke in the search field. */
     private final class SearchListener implements DocumentListener {
         @Override
         public void insertUpdate(DocumentEvent event) {
@@ -141,6 +143,7 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
         }
     }
 
+    /** Renders each list cell as the thread's display name instead of its default {@code toString()}. */
     private static final class ThreadRenderer extends DefaultListCellRenderer {
         @Override
         public Component getListCellRendererComponent(

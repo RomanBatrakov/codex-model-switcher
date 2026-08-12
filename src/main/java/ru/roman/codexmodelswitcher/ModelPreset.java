@@ -3,6 +3,11 @@ package ru.roman.codexmodelswitcher;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * One configurable model/reasoning-effort preset (Terra/Sol/Luna slots), plus
+ * validation for the free-text model name and the closed set of reasoning
+ * effort values.
+ */
 record ModelPreset(PresetId id, String label, String model, String effort) {
     private static final int MAX_MODEL_LENGTH = 128;
     static final List<String> EFFORT_OPTIONS = List.of("minimal", "low", "medium", "high", "xhigh", "max");

@@ -14,6 +14,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+/**
+ * Top-level entry points for every user-triggered action: switching a model
+ * preset, opening a new or existing chat, and launching a custom profile.
+ * Each of these lazily ensures the local app server is reachable first (see
+ * {@link #ensureServerReady(Project)}) except {@link #launchProfile}, which
+ * is a standalone CLI invocation that never talks to the app server.
+ */
 final class CodexWorkflow {
     private CodexWorkflow() {
     }

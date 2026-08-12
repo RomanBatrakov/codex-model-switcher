@@ -27,6 +27,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Settings dialog: app-server address, the four model/effort/shortcut
+ * presets, and the user-managed launch-profiles table. Edits are held in a
+ * working copy and only committed to {@link CodexModelSwitcherSettings} once
+ * validation passes and the user clicks OK.
+ */
 final class CodexSettingsDialog extends DialogWrapper {
     private static final String[] PROFILE_COLUMNS = {"Name", "Arguments"};
 
@@ -243,6 +249,7 @@ final class CodexSettingsDialog extends DialogWrapper {
         return String.valueOf(presetId.ordinal() + 1);
     }
 
+    /** The editable UI fields for one preset row: model combo, effort combo, and shortcut digit. */
     private static final class PresetFields {
         private final ModelPreset.PresetId presetId;
         private final JComboBox<String> modelField;

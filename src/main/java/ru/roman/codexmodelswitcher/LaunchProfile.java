@@ -1,5 +1,12 @@
 package ru.roman.codexmodelswitcher;
 
+/**
+ * A user-configured launch profile: a display name plus extra CLI arguments
+ * appended to the trusted Codex executable (see {@link CodexUtils#codexExecutable()}).
+ * A plain public bean so {@link CodexModelSwitcherSettings} can serialize a
+ * list of these via IntelliJ's {@code PersistentStateComponent} XML
+ * serializer, which requires public no-arg-constructible fields.
+ */
 final class LaunchProfile {
     static final int MAX_NAME_LENGTH = 64;
     static final int MAX_ARGUMENTS_LENGTH = 256;

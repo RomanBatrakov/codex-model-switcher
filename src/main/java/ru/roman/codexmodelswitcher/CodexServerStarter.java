@@ -25,6 +25,10 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.security.SecureRandom;
 
+/**
+ * Starts, or safely adopts an already-running instance of, the local Codex
+ * app server, and owns the lifecycle of its capability token and terminal.
+ */
 @Service(Service.Level.APP)
 public final class CodexServerStarter implements Disposable {
     static final String AUTH_TOKEN_ENV = "CODEX_MODEL_SWITCHER_TOKEN";
@@ -35,10 +39,22 @@ public final class CodexServerStarter implements Disposable {
     private Path authTokenFile;
     private String authToken;
 
+    /** Returns the application-level singleton instance. */
     public static CodexServerStarter getInstance() {
         return ApplicationManager.getApplication().getService(CodexServerStarter.class);
     }
 
+    /**
+     * Starts a new local app-server process in a dedicated terminal, unless
+     * the configured port is already occupied -- in that case this tries to
+     * adopt the existing server's credentials instead of spawning a
+     * duplicate (see {@link #restoreTokenFromRunningServer()}).
+     *
+     * @param project the project used to host the server's terminal
+     * @return true once the server is started or an existing one was adopted
+     * @throws IOException if the port is occupied by an unrecognized process,
+     *         or the server process/terminal could not be started
+     */
     public synchronized boolean start(Project project) throws IOException {
         URI endpoint = CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
         if (isPortOccupied(endpoint)) {
@@ -349,6 +365,7 @@ public final class CodexServerStarter implements Disposable {
         }
     }
 
+    /** Closes the server's terminal (if this instance opened one) and deletes its token file. */
     @Override
     public void dispose() {
         ShellTerminalWidget terminal;

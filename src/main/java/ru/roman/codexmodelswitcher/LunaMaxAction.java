@@ -4,6 +4,10 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * Tools-menu action that switches every active Codex chat to the Luna /
+ * Max preset.
+ */
 public final class LunaMaxAction extends AnAction {
     @Override
     public void actionPerformed(@NotNull AnActionEvent event) {
