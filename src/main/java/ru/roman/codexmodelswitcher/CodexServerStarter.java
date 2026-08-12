@@ -2,12 +2,15 @@ package ru.roman.codexmodelswitcher;
 
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.plugins.terminal.ShellTerminalWidget;
 import org.jetbrains.plugins.terminal.TerminalView;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URI;
@@ -19,6 +22,7 @@ import java.util.List;
 import java.util.Base64;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.security.SecureRandom;
 
 @Service(Service.Level.APP)
@@ -109,35 +113,86 @@ public final class CodexServerStarter implements Disposable {
      * in-memory token is gone, while the local Codex process still advertises
      * its owner-only token file in its command line. Recovering that token
      * keeps an existing localhost server usable after an IDE/plugin restart.
+     *
+     * <p>Looks up the specific process bound to the configured port (via
+     * {@code lsof}) instead of scanning every process for a text match: with
+     * several stale attempts lying around, a substring match could recover
+     * the wrong process's token, and command-line inspection is otherwise
+     * unable to tell which of several matching processes actually holds the
+     * port.
      */
     private void restoreTokenFromRunningServer() {
         if (authToken != null && authTokenFile != null && Files.isRegularFile(authTokenFile)) {
             return;
         }
         String endpoint = CodexModelSwitcherSettings.getInstance().serverUrl();
-        String listenMarker = "--listen " + endpoint;
+        final URI endpointUri;
         try {
-            for (ProcessHandle process : ProcessHandle.allProcesses().toList()) {
-                String commandLine = process.info().commandLine().orElse("");
-                if (!commandLine.contains("app-server")
-                        || !commandLine.contains("--ws-auth capability-token")
-                        || !commandLine.contains(listenMarker)) {
-                    continue;
-                }
-                Path tokenFile = tokenFileFromCommandLine(commandLine);
-                if (tokenFile == null || !isOwnerOnlyTokenFile(tokenFile)) {
-                    continue;
+            endpointUri = CodexServerEndpoint.requireValid(endpoint);
+        } catch (IllegalArgumentException ignored) {
+            return;
+        }
+        Long pid = pidListeningOnPort(endpointUri);
+        if (pid == null) {
+            return;
+        }
+        ProcessHandle.of(pid).ifPresent(process -> {
+            String commandLine = process.info().commandLine().orElse("");
+            String listenMarker = "--listen " + endpoint;
+            if (!commandLine.contains("app-server")
+                    || !commandLine.contains("--ws-auth capability-token")
+                    || !commandLine.contains(listenMarker)) {
+                return;
+            }
+            Path tokenFile = tokenFileFromCommandLine(commandLine);
+            if (tokenFile == null) {
+                return;
+            }
+            try {
+                if (!isOwnerOnlyTokenFile(tokenFile)) {
+                    return;
                 }
                 String token = Files.readString(tokenFile, StandardCharsets.UTF_8).trim();
                 if (token.matches("[A-Za-z0-9_-]{32,256}")) {
                     authTokenFile = tokenFile;
                     authToken = token;
-                    return;
                 }
+            } catch (IOException ignored) {
+                // The token file vanished or became unreadable between the
+                // lsof lookup and this read; leave state untouched so the
+                // caller reports a clear "port in use" error instead of
+                // silently connecting with a stale/invalid token.
             }
-        } catch (IOException | RuntimeException ignored) {
-            // If process inspection is unavailable, the normal server-start
-            // path still reports the connection error to the user.
+        });
+    }
+
+    /**
+     * Resolves the PID of the process currently listening on the endpoint's
+     * port via {@code lsof}, the only reliable way to answer "who owns this
+     * socket" without a JDK API for it. Best-effort: any failure (lsof
+     * missing, timeout, unexpected output) is treated as "unknown" rather
+     * than propagated, since callers already handle a null/absent result by
+     * falling through to a clear user-facing error.
+     */
+    private static Long pidListeningOnPort(URI endpoint) {
+        try {
+            Process lsof = new ProcessBuilder(
+                    "lsof", "-nP", "-iTCP:" + endpoint.getPort(), "-sTCP:LISTEN", "-t")
+                    .redirectErrorStream(true)
+                    .start();
+            String firstLine;
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(lsof.getInputStream(), StandardCharsets.UTF_8))) {
+                firstLine = reader.readLine();
+            }
+            lsof.waitFor(1, TimeUnit.SECONDS);
+            lsof.destroyForcibly();
+            return firstLine == null || firstLine.isBlank() ? null : Long.parseLong(firstLine.trim());
+        } catch (IOException | RuntimeException error) {
+            return null;
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            return null;
         }
     }
 
@@ -190,8 +245,30 @@ public final class CodexServerStarter implements Disposable {
         }
     }
 
+    /**
+     * Token files live under the IDE's own per-installation system directory
+     * rather than the OS temp directory. A long-running server can easily
+     * outlive several days of IDE/plugin restarts, and the OS temp directory
+     * is subject to periodic cleanup of files that haven't been touched in a
+     * few days -- silently invalidating a still-running server's credentials
+     * out from under restoreTokenFromRunningServer().
+     */
+    private static Path tokenDirectory() {
+        return Path.of(PathManager.getSystemPath(), "codex-model-switcher");
+    }
+
     private static Path createAuthTokenFile() throws IOException {
-        Path tokenFile = Files.createTempFile("codex-model-switcher-", ".token");
+        Path directory = tokenDirectory();
+        Files.createDirectories(directory);
+        try {
+            Files.setPosixFilePermissions(directory, EnumSet.of(
+                    PosixFilePermission.OWNER_READ,
+                    PosixFilePermission.OWNER_WRITE,
+                    PosixFilePermission.OWNER_EXECUTE));
+        } catch (UnsupportedOperationException ignored) {
+            // Best-effort on file systems without POSIX permissions.
+        }
+        Path tokenFile = Files.createTempFile(directory, "codex-model-switcher-", ".token");
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes());
         Files.writeString(tokenFile, token, StandardCharsets.UTF_8);
         try {
