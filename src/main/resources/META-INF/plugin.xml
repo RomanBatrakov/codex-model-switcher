@@ -41,6 +41,8 @@
     <ul>
       <li>Fixed a bug where opening a new chat in a second project could reuse the app server
         already running for a different project, creating the chat in the wrong directory</li>
+      <li>Migrated off another internal platform API flagged by the Plugin Verifier
+        (terminal session creation)</li>
     </ul>
   ]]></change-notes>
 

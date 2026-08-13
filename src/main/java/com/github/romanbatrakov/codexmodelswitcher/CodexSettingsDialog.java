@@ -70,7 +70,8 @@ final class CodexSettingsDialog extends DialogWrapper {
         panel.setPreferredSize(new Dimension(720, 480));
 
         JPanel connectionPanel = new JBPanel<>(new GridLayout(2, 1, 0, 4));
-        connectionPanel.add(new JBLabel("App-server address:"));
+        connectionPanel.add(new JBLabel("Preferred app-server address (each project uses its own port,"
+                + " starting from this one, if it's taken):"));
         connectionPanel.add(serverUrlField);
         panel.add(connectionPanel, BorderLayout.NORTH);
 

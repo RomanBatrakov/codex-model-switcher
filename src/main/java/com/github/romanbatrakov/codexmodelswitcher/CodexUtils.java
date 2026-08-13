@@ -2,6 +2,10 @@ package com.github.romanbatrakov.codexmodelswitcher;
 
 import com.intellij.ide.plugins.cl.PluginAwareClassLoader;
 import com.intellij.openapi.extensions.PluginDescriptor;
+import com.intellij.openapi.project.Project;
+import com.intellij.terminal.ui.TerminalWidget;
+import org.jetbrains.plugins.terminal.TerminalTabState;
+import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -78,6 +82,26 @@ final class CodexUtils {
         }
         String sanitized = message.replaceAll("[\\r\\n\\t]+", " ").trim();
         return sanitized.length() <= 500 ? sanitized : sanitized.substring(0, 500) + "…";
+    }
+
+    /**
+     * Opens a new terminal session with a plain interactive shell (no fixed
+     * command), so a command can be typed into it afterward via {@link
+     * TerminalWidget#sendCommandToExecute(String)}.
+     *
+     * <p>Goes through {@code createNewSession(AbstractTerminalRunner,
+     * TerminalTabState, ContentManager)} rather than the more convenient
+     * {@code createNewSession(String, String, List, boolean, boolean)}:
+     * the latter is annotated {@code @ApiStatus.Internal} (flagged by the
+     * Plugin Verifier), while this one is only {@code @ApiStatus.Experimental}.
+     * A null runner/contentManager makes the manager fall back to its own
+     * defaults, matching what the internal overload does internally.
+     */
+    static TerminalWidget openTerminalSession(Project project, String directory, String tabName) {
+        TerminalTabState tabState = new TerminalTabState();
+        tabState.myWorkingDirectory = directory;
+        tabState.myTabName = tabName;
+        return TerminalToolWindowManager.getInstance(project).createNewSession(null, tabState, null);
     }
 
     static String pluginVersion() {

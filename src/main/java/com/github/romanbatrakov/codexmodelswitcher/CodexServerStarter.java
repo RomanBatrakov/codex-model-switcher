@@ -6,7 +6,6 @@ import com.intellij.openapi.application.PathManager;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.intellij.terminal.ui.TerminalWidget;
-import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -125,8 +124,7 @@ public final class CodexServerStarter implements Disposable {
         authToken = newAuthToken;
         try {
             String directory = project.getBasePath() == null ? System.getProperty("user.dir") : project.getBasePath();
-            serverTerminal = TerminalToolWindowManager.getInstance(project)
-                    .createNewSession(directory, "Codex Server", null, true, true);
+            serverTerminal = CodexUtils.openTerminalSession(project, directory, "Codex Server");
             serverTerminal.sendCommandToExecute(CodexUtils.shellQuote(codexExecutable.toString())
                     + " app-server --listen "
                     + CodexUtils.shellQuote(endpoint.toString())

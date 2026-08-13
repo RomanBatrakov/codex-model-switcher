@@ -3,7 +3,6 @@ package com.github.romanbatrakov.codexmodelswitcher;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.terminal.ui.TerminalWidget;
-import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
 import java.io.IOException;
 import java.net.URI;
@@ -144,8 +143,7 @@ final class CodexWorkflow {
                     + " --remote " + CodexUtils.shellQuote(endpoint.toString())
                     + remoteAuthOption(project)
                     + " resume " + CodexUtils.shellQuote(thread.id());
-            TerminalWidget terminal = TerminalToolWindowManager.getInstance(project)
-                    .createNewSession(directory, "Codex — " + thread.shortId(), null, true, true);
+            TerminalWidget terminal = CodexUtils.openTerminalSession(project, directory, "Codex — " + thread.shortId());
             terminal.sendCommandToExecute(command);
         } catch (IOException error) {
             CodexNotifications.error(project, "Could not open the chat in a terminal", CodexUtils.userMessage(error));
@@ -162,8 +160,7 @@ final class CodexWorkflow {
                     + remoteAuthOption(project)
                     + " --model " + CodexUtils.shellQuote(preset.model())
                     + " -c " + CodexUtils.shellQuote("model_reasoning_effort=\"" + preset.effort() + "\"");
-            TerminalWidget terminal = TerminalToolWindowManager.getInstance(project)
-                    .createNewSession(directory, "Codex — new chat", null, true, true);
+            TerminalWidget terminal = CodexUtils.openTerminalSession(project, directory, "Codex — new chat");
             terminal.sendCommandToExecute(command);
         } catch (IOException error) {
             CodexNotifications.error(project, "Could not open a new chat", CodexUtils.userMessage(error));
@@ -179,8 +176,7 @@ final class CodexWorkflow {
             for (String token : CodexUtils.tokenizeArguments(profile.arguments)) {
                 command.append(' ').append(CodexUtils.shellQuote(token));
             }
-            TerminalWidget terminal = TerminalToolWindowManager.getInstance(project)
-                    .createNewSession(directory, "Codex — " + profile.name, null, true, true);
+            TerminalWidget terminal = CodexUtils.openTerminalSession(project, directory, "Codex — " + profile.name);
             terminal.sendCommandToExecute(command.toString());
         } catch (IOException error) {
             CodexNotifications.error(project, "Could not launch the profile", CodexUtils.userMessage(error));
