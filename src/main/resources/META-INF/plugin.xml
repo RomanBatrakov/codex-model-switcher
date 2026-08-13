@@ -46,8 +46,8 @@
 
   <extensions defaultExtensionNs="com.intellij">
     <applicationService serviceImplementation="com.github.romanbatrakov.codexmodelswitcher.CodexModelSwitcherSettings"/>
-    <applicationService serviceImplementation="com.github.romanbatrakov.codexmodelswitcher.CodexAppServerClient"/>
-    <applicationService serviceImplementation="com.github.romanbatrakov.codexmodelswitcher.CodexServerStarter"/>
+    <projectService serviceImplementation="com.github.romanbatrakov.codexmodelswitcher.CodexAppServerClient"/>
+    <projectService serviceImplementation="com.github.romanbatrakov.codexmodelswitcher.CodexServerStarter"/>
     <applicationService serviceImplementation="com.github.romanbatrakov.codexmodelswitcher.CodexKeyboardShortcutService"/>
     <postStartupActivity implementation="com.github.romanbatrakov.codexmodelswitcher.CodexKeyboardShortcutStartupActivity"/>
     <toolWindow id="Model Switcher"

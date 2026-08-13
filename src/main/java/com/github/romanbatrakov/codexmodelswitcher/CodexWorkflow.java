@@ -6,6 +6,7 @@ import com.intellij.terminal.ui.TerminalWidget;
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -33,7 +34,7 @@ final class CodexWorkflow {
 
     static void switchModel(Project project, ModelPreset preset) {
         ensureServerReady(project)
-                .thenCompose(ignored -> CodexAppServerClient.getInstance().updateAllThreadSettings(preset))
+                .thenCompose(ignored -> CodexAppServerClient.getInstance(project).updateAllThreadSettings(preset))
                 .thenRun(() -> CodexModelSwitcherSettings.getInstance().setLastPresetId(preset.id()))
                 .whenComplete((ignored, error) -> {
                     if (error != null) {
@@ -56,7 +57,7 @@ final class CodexWorkflow {
 
     static void chooseAndOpenChat(Project project) {
         ensureServerReady(project)
-                .thenCompose(ignored -> CodexAppServerClient.getInstance().listThreads())
+                .thenCompose(ignored -> CodexAppServerClient.getInstance(project).listThreads())
                 .whenComplete((threads, error) -> {
                     if (error != null) {
                         CodexNotifications.error(project, "No connection to Codex", serverErrorMessage(error));
@@ -72,7 +73,7 @@ final class CodexWorkflow {
                 project,
                 threads,
                 settings.lastThreadId(),
-                () -> CodexAppServerClient.getInstance().listThreads());
+                () -> CodexAppServerClient.getInstance(project).listThreads());
         if (!dialog.showAndGet()) {
             return;
         }
@@ -93,10 +94,10 @@ final class CodexWorkflow {
      * protocol connection is retried before a model update begins.
      */
     private static CompletableFuture<Void> ensureServerReady(Project project) {
-        return CodexAppServerClient.getInstance().connect()
+        return CodexAppServerClient.getInstance(project).connect()
                 .handle((ignored, error) -> error == null
                         ? CompletableFuture.<Void>completedFuture(null)
-                        : startServerTerminal(project).thenCompose(ignoredAgain -> waitForServer(16)))
+                        : startServerTerminal(project).thenCompose(ignoredAgain -> waitForServer(project, 16)))
                 .thenCompose(Function.identity());
     }
 
@@ -104,7 +105,7 @@ final class CodexWorkflow {
         CompletableFuture<Void> terminalCreated = new CompletableFuture<>();
         ApplicationManager.getApplication().invokeLater(() -> {
             try {
-                CodexServerStarter.getInstance().start(project);
+                CodexServerStarter.getInstance(project).start();
                 terminalCreated.complete(null);
             } catch (Throwable error) {
                 terminalCreated.completeExceptionally(error);
@@ -113,8 +114,8 @@ final class CodexWorkflow {
         return terminalCreated;
     }
 
-    private static CompletableFuture<Void> waitForServer(int attemptsLeft) {
-        return CodexAppServerClient.getInstance().connect()
+    private static CompletableFuture<Void> waitForServer(Project project, int attemptsLeft) {
+        return CodexAppServerClient.getInstance(project).connect()
                 .handle((ignored, error) -> {
                     if (error == null) {
                         return CompletableFuture.<Void>completedFuture(null);
@@ -126,7 +127,7 @@ final class CodexWorkflow {
                                     () -> { },
                                     CompletableFuture.delayedExecutor(200, TimeUnit.MILLISECONDS)
                             )
-                            .thenCompose(_ -> waitForServer(attemptsLeft - 1));
+                            .thenCompose(_ -> waitForServer(project, attemptsLeft - 1));
                 })
                 .thenCompose(Function.identity());
     }
@@ -137,11 +138,11 @@ final class CodexWorkflow {
             return;
         }
         try {
-            CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
+            URI endpoint = requireResolvedEndpoint(project);
             String directory = project.getBasePath() == null ? System.getProperty("user.dir") : project.getBasePath();
-            String command = authEnvironmentPrefix() + CodexUtils.shellQuote(CodexUtils.codexExecutable().toString())
-                    + " --remote " + CodexUtils.shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
-                    + remoteAuthOption()
+            String command = authEnvironmentPrefix(project) + CodexUtils.shellQuote(CodexUtils.codexExecutable().toString())
+                    + " --remote " + CodexUtils.shellQuote(endpoint.toString())
+                    + remoteAuthOption(project)
                     + " resume " + CodexUtils.shellQuote(thread.id());
             TerminalWidget terminal = TerminalToolWindowManager.getInstance(project)
                     .createNewSession(directory, "Codex — " + thread.shortId(), null, true, true);
@@ -153,12 +154,12 @@ final class CodexWorkflow {
 
     private static void openNewChatInTerminal(Project project, String directory, ModelPreset preset) {
         try {
-            CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
+            URI endpoint = requireResolvedEndpoint(project);
             ModelPreset.requireModel(preset.model());
             ModelPreset.requireEffort(preset.effort());
-            String command = authEnvironmentPrefix() + CodexUtils.shellQuote(CodexUtils.codexExecutable().toString())
-                    + " --remote " + CodexUtils.shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
-                    + remoteAuthOption()
+            String command = authEnvironmentPrefix(project) + CodexUtils.shellQuote(CodexUtils.codexExecutable().toString())
+                    + " --remote " + CodexUtils.shellQuote(endpoint.toString())
+                    + remoteAuthOption(project)
                     + " --model " + CodexUtils.shellQuote(preset.model())
                     + " -c " + CodexUtils.shellQuote("model_reasoning_effort=\"" + preset.effort() + "\"");
             TerminalWidget terminal = TerminalToolWindowManager.getInstance(project)
@@ -186,8 +187,17 @@ final class CodexWorkflow {
         }
     }
 
-    private static String authEnvironmentPrefix() {
-        Path tokenFile = CodexServerStarter.getInstance().authTokenFile();
+    /** The resolved address of this project's own app server; ensureServerReady must have already succeeded. */
+    private static URI requireResolvedEndpoint(Project project) throws IOException {
+        URI endpoint = CodexServerStarter.getInstance(project).resolvedEndpoint();
+        if (endpoint == null) {
+            throw new IOException("The Codex app server has not been started for this project yet.");
+        }
+        return endpoint;
+    }
+
+    private static String authEnvironmentPrefix(Project project) {
+        Path tokenFile = CodexServerStarter.getInstance(project).authTokenFile();
         if (tokenFile == null) {
             return "";
         }
@@ -195,8 +205,8 @@ final class CodexWorkflow {
                 + "=\"$(/bin/cat " + CodexUtils.shellQuote(tokenFile.toString()) + ")\" ";
     }
 
-    private static String remoteAuthOption() {
-        return CodexServerStarter.getInstance().authTokenFile() == null
+    private static String remoteAuthOption(Project project) {
+        return CodexServerStarter.getInstance(project).authTokenFile() == null
                 ? ""
                 : " --remote-auth-token-env " + CodexServerStarter.AUTH_TOKEN_ENV;
     }

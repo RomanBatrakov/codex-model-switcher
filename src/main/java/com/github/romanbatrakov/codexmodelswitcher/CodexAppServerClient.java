@@ -4,8 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.openapi.Disposable;
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.Service;
+import com.intellij.openapi.project.Project;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -32,12 +32,15 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 /**
- * WebSocket client for the local Codex app server's JSON-RPC protocol.
- * Owns the single shared connection, tracks which threads are currently
- * loaded, and exposes the operations the plugin needs: listing chats and
- * updating model/reasoning settings on every active thread.
+ * WebSocket client for one project's local Codex app server JSON-RPC
+ * protocol. Owns that project's connection, tracks which threads are
+ * currently loaded, and exposes the operations the plugin needs: listing
+ * chats and updating model/reasoning settings on every active thread. Each
+ * open project gets its own instance, connected to that project's own
+ * server (see {@link CodexServerStarter}), so requests never cross into
+ * another project's server.
  */
-@Service(Service.Level.APP)
+@Service(Service.Level.PROJECT)
 public final class CodexAppServerClient implements Disposable {
     private static final int MAX_THREAD_COUNT = 10_000;
     private static final int MAX_TEXT_MESSAGE_LENGTH = 1_048_576;
@@ -52,16 +55,21 @@ public final class CodexAppServerClient implements Disposable {
     private final Set<String> liveThreadIds = ConcurrentHashMap.newKeySet();
     private final Object connectionLock = new Object();
     private final Object modelUpdateLock = new Object();
+    private final Project project;
 
     private CompletableFuture<Void> modelUpdateTail = CompletableFuture.completedFuture(null);
 
     private volatile WebSocket socket;
     private volatile CompletableFuture<Void> connection;
-    private volatile String connectedEndpoint;
+    private volatile URI connectedEndpoint;
 
-    /** Returns the application-level singleton instance. */
-    public static CodexAppServerClient getInstance() {
-        return ApplicationManager.getApplication().getService(CodexAppServerClient.class);
+    CodexAppServerClient(Project project) {
+        this.project = project;
+    }
+
+    /** Returns the project-level singleton instance. */
+    public static CodexAppServerClient getInstance(Project project) {
+        return project.getService(CodexAppServerClient.class);
     }
 
     /**
@@ -348,25 +356,23 @@ public final class CodexAppServerClient implements Disposable {
     }
 
     private CompletableFuture<Void> ensureConnected() {
-        String endpoint = CodexModelSwitcherSettings.getInstance().serverUrl();
-        final URI endpointUri;
-        try {
-            endpointUri = CodexServerEndpoint.requireValid(endpoint);
-        } catch (IllegalArgumentException error) {
-            return CompletableFuture.failedFuture(error);
+        URI endpointUri = CodexServerStarter.getInstance(project).resolvedEndpoint();
+        if (endpointUri == null) {
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException("The Codex app server has not been started for this project yet."));
         }
         synchronized (connectionLock) {
             if (socket != null && connection != null && connection.isDone() && !connection.isCompletedExceptionally() &&
-                endpoint.equals(connectedEndpoint)) {
+                endpointUri.equals(connectedEndpoint)) {
                 return connection;
             }
-            if (connection != null && !connection.isDone() && endpoint.equals(connectedEndpoint)) {
+            if (connection != null && !connection.isDone() && endpointUri.equals(connectedEndpoint)) {
                 return connection;
             }
             closeSocket();
-            connectedEndpoint = endpoint;
+            connectedEndpoint = endpointUri;
             WebSocket.Builder webSocketBuilder = httpClient.newWebSocketBuilder().connectTimeout(Duration.ofSeconds(1));
-            String authToken = CodexServerStarter.getInstance().authToken();
+            String authToken = CodexServerStarter.getInstance(project).authToken();
             if (authToken != null && !authToken.isBlank()) {
                 webSocketBuilder.header("Authorization", "Bearer " + authToken);
             }

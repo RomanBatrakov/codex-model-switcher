@@ -14,6 +14,7 @@ import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.Files;
@@ -27,52 +28,83 @@ import java.security.SecureRandom;
 
 /**
  * Starts, or safely adopts an already-running instance of, the local Codex
- * app server, and owns the lifecycle of its capability token and terminal.
+ * app server for one project, and owns the lifecycle of its capability token
+ * and terminal. Each open project gets its own instance and its own server
+ * process/port, so chats created from one project window are never rooted in
+ * another project's directory.
  */
-@Service(Service.Level.APP)
+@Service(Service.Level.PROJECT)
 public final class CodexServerStarter implements Disposable {
     static final String AUTH_TOKEN_ENV = "CODEX_MODEL_SWITCHER_TOKEN";
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int PORT_PROBE_TIMEOUT_MILLIS = 300;
+    private static final int MAX_PORT_SEARCH_ATTEMPTS = 50;
+
+    private final Project project;
+    private final String projectTag;
 
     private TerminalWidget serverTerminal;
     private Path authTokenFile;
     private String authToken;
+    private URI resolvedEndpoint;
 
-    /** Returns the application-level singleton instance. */
-    public static CodexServerStarter getInstance() {
-        return ApplicationManager.getApplication().getService(CodexServerStarter.class);
+    CodexServerStarter(Project project) {
+        this.project = project;
+        this.projectTag = projectTag(project);
+    }
+
+    /** Returns the project-level singleton instance. */
+    public static CodexServerStarter getInstance(Project project) {
+        return project.getService(CodexServerStarter.class);
+    }
+
+    /** The actual address this project's server is listening on, or null if not started this session. */
+    synchronized URI resolvedEndpoint() {
+        return resolvedEndpoint;
     }
 
     /**
-     * Starts a new local app-server process in a dedicated terminal, unless
-     * the configured port is already occupied -- in that case this tries to
-     * adopt the existing server's credentials instead of spawning a
-     * duplicate (see {@link #restoreTokenFromRunningServer()}).
+     * Starts a new local app-server process in a dedicated terminal for this
+     * project. The configured address in Settings is only a preferred
+     * starting port: if it is already occupied by another project's server
+     * (or any other process), this searches forward for the next free port
+     * instead of colliding with it. If the configured port is occupied by
+     * this same project's own server from an earlier session (recognizable
+     * by its project-tagged token file), that server is adopted instead of
+     * spawning a duplicate.
      *
-     * @param project the project used to host the server's terminal
      * @return true once the server is started or an existing one was adopted
-     * @throws IOException if the port is occupied by an unrecognized process,
+     * @throws IOException if no free/adoptable port could be found nearby,
      *         or the server process/terminal could not be started
      */
-    public synchronized boolean start(Project project) throws IOException {
-        URI endpoint = CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
-        if (isPortOccupied(endpoint)) {
-            // Something is already listening -- most likely this plugin's own
-            // server from an earlier session that this window lost track of.
-            // Starting a second app-server on the same port would just crash
-            // with "Address already in use"; try to adopt the existing one
-            // instead of blindly spawning a duplicate.
-            restoreTokenFromRunningServer();
-            if (authToken != null && authTokenFile != null && Files.isRegularFile(authTokenFile)) {
+    public synchronized boolean start() throws IOException {
+        URI baseEndpoint = CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
+        IOException lastConflict = null;
+        for (int attempt = 0; attempt < MAX_PORT_SEARCH_ATTEMPTS; attempt++) {
+            int port = baseEndpoint.getPort() + attempt;
+            if (port > 65535) {
+                break;
+            }
+            URI candidate = withPort(baseEndpoint, port);
+            if (!isPortOccupied(candidate)) {
+                return spawnServer(candidate);
+            }
+            if (adoptIfOwnServer(candidate)) {
+                resolvedEndpoint = candidate;
                 return true;
             }
-            throw new IOException("Port " + endpoint.getPort() + " on " + endpoint.getHost()
+            lastConflict = new IOException("Port " + port + " on " + candidate.getHost()
                     + " is already in use by another process. Stop it or change the app-server address in "
                     + "Settings, then try again.");
         }
+        throw lastConflict != null ? lastConflict
+                : new IOException("Could not find a free port near " + baseEndpoint.getPort()
+                        + " for the Codex app server.");
+    }
+
+    private boolean spawnServer(URI endpoint) throws IOException {
         Path codexExecutable = CodexUtils.codexExecutable();
-        Path newAuthTokenFile = createAuthTokenFile();
+        Path newAuthTokenFile = createAuthTokenFile(projectTag);
         String newAuthToken;
         try {
             newAuthToken = Files.readString(newAuthTokenFile, StandardCharsets.UTF_8).trim();
@@ -97,9 +129,10 @@ public final class CodexServerStarter implements Disposable {
                     .createNewSession(directory, "Codex Server", null, true, true);
             serverTerminal.sendCommandToExecute(CodexUtils.shellQuote(codexExecutable.toString())
                     + " app-server --listen "
-                    + CodexUtils.shellQuote(CodexModelSwitcherSettings.getInstance().serverUrl())
+                    + CodexUtils.shellQuote(endpoint.toString())
                     + " --ws-auth capability-token --ws-token-file "
                     + CodexUtils.shellQuote(authTokenFile.toString()));
+            resolvedEndpoint = endpoint;
             return true;
         } catch (RuntimeException error) {
             if (serverTerminal != null) {
@@ -116,71 +149,75 @@ public final class CodexServerStarter implements Disposable {
     }
 
     synchronized String authToken() {
-        restoreTokenFromRunningServer();
+        refreshTokenIfNeeded();
         return authToken;
     }
 
     synchronized Path authTokenFile() {
-        restoreTokenFromRunningServer();
+        refreshTokenIfNeeded();
         return authTokenFile;
     }
 
     /**
-     * The app-server can outlive an IntelliJ plugin reload. In that case the
-     * in-memory token is gone, while the local Codex process still advertises
-     * its owner-only token file in its command line. Recovering that token
-     * keeps an existing localhost server usable after an IDE/plugin restart.
-     *
-     * <p>Looks up the specific process bound to the configured port (via
-     * {@code lsof}) instead of scanning every process for a text match: with
-     * several stale attempts lying around, a substring match could recover
-     * the wrong process's token, and command-line inspection is otherwise
-     * unable to tell which of several matching processes actually holds the
-     * port.
+     * The app-server can outlive an IntelliJ plugin reload, which drops this
+     * service's in-memory token. Since the token file's name is tagged with
+     * this project's id, re-scanning the last resolved port and matching the
+     * tag recovers the right token without risking adoption of a different
+     * project's still-running server.
      */
-    private void restoreTokenFromRunningServer() {
+    private void refreshTokenIfNeeded() {
         if (authToken != null && authTokenFile != null && Files.isRegularFile(authTokenFile)) {
             return;
         }
-        String endpoint = CodexModelSwitcherSettings.getInstance().serverUrl();
-        final URI endpointUri;
-        try {
-            endpointUri = CodexServerEndpoint.requireValid(endpoint);
-        } catch (IllegalArgumentException ignored) {
+        if (resolvedEndpoint == null) {
             return;
         }
-        Long pid = pidListeningOnPort(endpointUri);
+        adoptIfOwnServer(resolvedEndpoint);
+    }
+
+    /**
+     * Looks up the process bound to {@code endpoint}'s port (via {@code
+     * lsof}) and, if it is a plugin-managed app-server whose token file is
+     * tagged for this project, recovers its token. Returns false for a free
+     * port, an unrelated process, or another project's server -- callers
+     * fall back to treating the port as still occupied by someone else.
+     */
+    private boolean adoptIfOwnServer(URI endpoint) {
+        Long pid = pidListeningOnPort(endpoint);
         if (pid == null) {
-            return;
+            return false;
         }
-        ProcessHandle.of(pid).ifPresent(process -> {
+        return ProcessHandle.of(pid).map(process -> {
             String commandLine = process.info().commandLine().orElse("");
             String listenMarker = "--listen " + endpoint;
             if (!commandLine.contains("app-server")
                     || !commandLine.contains("--ws-auth capability-token")
                     || !commandLine.contains(listenMarker)) {
-                return;
+                return false;
             }
             Path tokenFile = tokenFileFromCommandLine(commandLine);
-            if (tokenFile == null) {
-                return;
+            if (tokenFile == null || !tokenFile.getFileName().toString().startsWith(tokenFilePrefix(projectTag))) {
+                return false;
             }
             try {
                 if (!isOwnerOnlyTokenFile(tokenFile)) {
-                    return;
+                    return false;
                 }
                 String token = Files.readString(tokenFile, StandardCharsets.UTF_8).trim();
-                if (token.matches("[A-Za-z0-9_-]{32,256}")) {
-                    authTokenFile = tokenFile;
-                    authToken = token;
+                if (!token.matches("[A-Za-z0-9_-]{32,256}")) {
+                    return false;
                 }
+                authTokenFile = tokenFile;
+                authToken = token;
+                return true;
             } catch (IOException ignored) {
                 // The token file vanished or became unreadable between the
                 // lsof lookup and this read; leave state untouched so the
-                // caller reports a clear "port in use" error instead of
-                // silently connecting with a stale/invalid token.
+                // caller treats the port as unavailable instead of silently
+                // connecting with a stale/invalid token.
+                return false;
             }
-        });
+        }).orElse(false);
     }
 
     /**
@@ -220,6 +257,24 @@ public final class CodexServerStarter implements Disposable {
         } catch (IOException ignored) {
             return false;
         }
+    }
+
+    private static URI withPort(URI base, int port) throws IOException {
+        try {
+            return new URI(base.getScheme(), null, base.getHost(), port, null, null, null);
+        } catch (URISyntaxException error) {
+            throw new IOException("Could not build an app-server address for port " + port, error);
+        }
+    }
+
+    /** A short, filesystem-safe id unique to this project's location, used to tag this project's own token files. */
+    private static String projectTag(Project project) {
+        String sanitized = project.getLocationHash().replaceAll("[^A-Za-z0-9]", "");
+        return sanitized.isEmpty() ? "p" : sanitized;
+    }
+
+    private static String tokenFilePrefix(String projectTag) {
+        return "codex-model-switcher-" + projectTag + "-";
     }
 
     private static Path tokenFileFromCommandLine(String commandLine) {
@@ -268,7 +323,7 @@ public final class CodexServerStarter implements Disposable {
      * outlive several days of IDE/plugin restarts, and the OS temp directory
      * is subject to periodic cleanup of files that haven't been touched in a
      * few days -- silently invalidating a still-running server's credentials
-     * out from under restoreTokenFromRunningServer().
+     * out from under adoptIfOwnServer().
      */
     private static Path tokenDirectory() {
         return Path.of(PathManager.getSystemPath(), "codex-model-switcher");
@@ -280,8 +335,9 @@ public final class CodexServerStarter implements Disposable {
      * {@link #dispose()} (IDE crash, force quit) would sit there forever.
      * Run on every fresh server start: a file is safe to delete only if no
      * currently running app-server process references it in its command
-     * line -- that's the same signal restoreTokenFromRunningServer() uses to
-     * recognize a live server, just inverted.
+     * line -- that's the same signal adoptIfOwnServer() uses to recognize a
+     * live server, just inverted. Not scoped to this project's tag: any
+     * project's stale files are equally safe to sweep here.
      */
     private static void cleanupStaleTokenFiles(Path directory) {
         try (var files = Files.list(directory)) {
@@ -311,7 +367,7 @@ public final class CodexServerStarter implements Disposable {
         }
     }
 
-    private static Path createAuthTokenFile() throws IOException {
+    private static Path createAuthTokenFile(String projectTag) throws IOException {
         Path directory = tokenDirectory();
         Files.createDirectories(directory);
         try {
@@ -323,7 +379,7 @@ public final class CodexServerStarter implements Disposable {
             // Best-effort on file systems without POSIX permissions.
         }
         cleanupStaleTokenFiles(directory);
-        Path tokenFile = Files.createTempFile(directory, "codex-model-switcher-", ".token");
+        Path tokenFile = Files.createTempFile(directory, tokenFilePrefix(projectTag), ".token");
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes());
         Files.writeString(tokenFile, token, StandardCharsets.UTF_8);
         try {
