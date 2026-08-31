@@ -6,6 +6,11 @@ import com.google.gson.JsonParser;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.wm.ToolWindow;
+import com.intellij.openapi.wm.ToolWindowManager;
+import com.intellij.terminal.ui.TerminalWidget;
+import com.intellij.ui.content.Content;
+import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -17,8 +22,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -57,6 +64,15 @@ public final class CodexAppServerClient implements Disposable {
     private final Object modelUpdateLock = new Object();
     private final Project project;
 
+    // Maps a terminal tab to the thread running inside it, so a preset switch
+    // can target "the active chat" instead of every open one. A resumed chat's
+    // id is known upfront (see trackResumedChat); a brand-new chat's id is
+    // only assigned once the app server starts it, so its terminal waits in
+    // pendingNewChatTerminals until the next thread/started notification
+    // claims it (see trackPendingNewChat and processNotification).
+    private final Map<TerminalWidget, String> threadIdByTerminal = new ConcurrentHashMap<>();
+    private final Deque<TerminalWidget> pendingNewChatTerminals = new ArrayDeque<>();
+
     private CompletableFuture<Void> modelUpdateTail = CompletableFuture.completedFuture(null);
 
     private volatile WebSocket socket;
@@ -90,6 +106,68 @@ public final class CodexAppServerClient implements Disposable {
      */
     public CompletableFuture<List<CodexThread>> listThreads() {
         return CompletableFuture.supplyAsync(this::listThreadsFromDisk);
+    }
+
+    /** Records that {@code terminal} is running the already-known {@code threadId} (a resumed chat). */
+    void trackResumedChat(TerminalWidget terminal, String threadId) {
+        threadIdByTerminal.put(terminal, threadId);
+    }
+
+    /**
+     * Records that {@code terminal} just started a brand-new chat whose id
+     * isn't known yet; the next {@code thread/started} notification claims it.
+     */
+    void trackPendingNewChat(TerminalWidget terminal) {
+        synchronized (pendingNewChatTerminals) {
+            pendingNewChatTerminals.addLast(terminal);
+        }
+    }
+
+    /**
+     * Resolves the thread running in the currently selected terminal tab, or
+     * null if the active tab isn't a chat this plugin opened (or there is no
+     * active tab).
+     */
+    private String activeThreadId() {
+        ToolWindow terminalToolWindow = ToolWindowManager.getInstance(project).getToolWindow("Terminal");
+        if (terminalToolWindow == null) {
+            return null;
+        }
+        Content selectedContent = terminalToolWindow.getContentManager().getSelectedContent();
+        if (selectedContent == null) {
+            return null;
+        }
+        TerminalWidget widget = TerminalToolWindowManager.findWidgetByContent(selectedContent);
+        return widget == null ? null : threadIdByTerminal.get(widget);
+    }
+
+    /**
+     * Applies {@code preset}'s model and reasoning effort only to the chat
+     * running in the currently active terminal tab.
+     *
+     * @param preset the model/effort to apply; must not be null
+     */
+    public CompletableFuture<Void> updateActiveThreadSettings(ModelPreset preset) {
+        if (preset == null) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("No model preset was specified."));
+        }
+        try {
+            ModelPreset.requireModel(preset.model());
+            ModelPreset.requireEffort(preset.effort());
+        } catch (IllegalArgumentException error) {
+            return CompletableFuture.failedFuture(error);
+        }
+        String threadId = activeThreadId();
+        if (threadId == null) {
+            return CompletableFuture.failedFuture(new IllegalStateException(
+                    "Could not determine the active chat. Click into a chat tab opened via this plugin, then try again."));
+        }
+        synchronized (modelUpdateLock) {
+            modelUpdateTail = modelUpdateTail
+                    .handle((ignored, _) -> null)
+                    .thenCompose(ignored -> reconnect().thenCompose(ignored2 -> updateThreadSettings(threadId, preset)));
+            return modelUpdateTail;
+        }
     }
 
     /**
@@ -483,6 +561,13 @@ public final class CodexAppServerClient implements Disposable {
             if (CodexThread.isValidId(threadId) && liveThreadIds.size() < MAX_THREAD_COUNT) {
                 liveThreadIds.add(threadId);
             }
+            TerminalWidget pendingTerminal;
+            synchronized (pendingNewChatTerminals) {
+                pendingTerminal = pendingNewChatTerminals.pollFirst();
+            }
+            if (pendingTerminal != null) {
+                threadIdByTerminal.put(pendingTerminal, threadId);
+            }
         } else if ("thread/closed".equals(method) || "thread/deleted".equals(method) ||
             "thread/archived".equals(method)) {
             liveThreadIds.remove(threadId);
@@ -510,6 +595,10 @@ public final class CodexAppServerClient implements Disposable {
     @Override
     public void dispose() {
         liveThreadIds.clear();
+        threadIdByTerminal.clear();
+        synchronized (pendingNewChatTerminals) {
+            pendingNewChatTerminals.clear();
+        }
         closeSocket();
     }
 

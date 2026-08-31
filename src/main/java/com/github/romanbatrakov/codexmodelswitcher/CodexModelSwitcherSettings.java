@@ -121,6 +121,15 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         data.launchProfiles = new ArrayList<>(profiles);
     }
 
+    /** Whether a preset switch should apply only to the active chat tab instead of every open chat. */
+    public boolean activeChatOnly() {
+        return data.activeChatOnly;
+    }
+
+    public void setActiveChatOnly(boolean activeChatOnly) {
+        data.activeChatOnly = activeChatOnly;
+    }
+
     /** The id of the last-opened chat, used to preselect it in the chat picker. */
     public String lastThreadId() {
         return data.lastThreadId;
@@ -213,6 +222,7 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         public String lunaMaxShortcut = "4";
         public String lastThreadId;
         public String lastPresetId = ModelPreset.PresetId.TERRA_MEDIUM.name();
+        public boolean activeChatOnly = false;
         public List<LaunchProfile> launchProfiles = new ArrayList<>();
     }
 }

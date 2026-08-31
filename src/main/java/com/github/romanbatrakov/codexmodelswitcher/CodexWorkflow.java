@@ -32,8 +32,12 @@ final class CodexWorkflow {
     }
 
     static void switchModel(Project project, ModelPreset preset) {
+        boolean activeChatOnly = CodexModelSwitcherSettings.getInstance().activeChatOnly();
         ensureServerReady(project)
-                .thenCompose(ignored -> CodexAppServerClient.getInstance(project).updateAllThreadSettings(preset))
+                .thenCompose(ignored -> {
+                    CodexAppServerClient client = CodexAppServerClient.getInstance(project);
+                    return activeChatOnly ? client.updateActiveThreadSettings(preset) : client.updateAllThreadSettings(preset);
+                })
                 .thenRun(() -> CodexModelSwitcherSettings.getInstance().setLastPresetId(preset.id()))
                 .whenComplete((ignored, error) -> {
                     if (error != null) {
@@ -144,6 +148,7 @@ final class CodexWorkflow {
                     + remoteAuthOption(project)
                     + " resume " + CodexUtils.shellQuote(thread.id());
             TerminalWidget terminal = CodexUtils.openTerminalSession(project, directory, "Codex — " + thread.shortId());
+            CodexAppServerClient.getInstance(project).trackResumedChat(terminal, thread.id());
             terminal.sendCommandToExecute(command);
         } catch (IOException error) {
             CodexNotifications.error(project, "Could not open the chat in a terminal", CodexUtils.userMessage(error));
@@ -161,6 +166,7 @@ final class CodexWorkflow {
                     + " --model " + CodexUtils.shellQuote(preset.model())
                     + " -c " + CodexUtils.shellQuote("model_reasoning_effort=\"" + preset.effort() + "\"");
             TerminalWidget terminal = CodexUtils.openTerminalSession(project, directory, "Codex — new chat");
+            CodexAppServerClient.getInstance(project).trackPendingNewChat(terminal);
             terminal.sendCommandToExecute(command);
         } catch (IOException error) {
             CodexNotifications.error(project, "Could not open a new chat", CodexUtils.userMessage(error));

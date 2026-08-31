@@ -11,6 +11,7 @@ import org.jspecify.annotations.NonNull;
 
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
@@ -41,6 +42,7 @@ final class CodexSettingsDialog extends DialogWrapper {
     private final PresetFields[] presetFields;
     private final DefaultTableModel profilesTableModel;
     private final JBTable profilesTable;
+    private final JCheckBox activeChatOnlyCheckBox;
 
     CodexSettingsDialog(Project project) {
         super(project);
@@ -60,6 +62,9 @@ final class CodexSettingsDialog extends DialogWrapper {
             profilesTableModel.addRow(new Object[]{profile.name, profile.arguments});
         }
         profilesTable = new JBTable(profilesTableModel);
+        activeChatOnlyCheckBox = new JCheckBox(
+                "Apply a preset only to the active chat tab, instead of every open chat",
+                settings.activeChatOnly());
         setTitle("Model Switcher for Codex CLI Settings");
         init();
     }
@@ -91,6 +96,13 @@ final class CodexSettingsDialog extends DialogWrapper {
             addCell(presetsPanel, constraints, 2, row, fields.effortField);
             addCell(presetsPanel, constraints, 3, row, fields.shortcutField);
         }
+        GridBagConstraints checkBoxConstraints = new GridBagConstraints();
+        checkBoxConstraints.gridx = 0;
+        checkBoxConstraints.gridy = presetFields.length + 1;
+        checkBoxConstraints.gridwidth = 4;
+        checkBoxConstraints.anchor = GridBagConstraints.WEST;
+        checkBoxConstraints.insets = new Insets(8, 4, 3, 4);
+        presetsPanel.add(activeChatOnlyCheckBox, checkBoxConstraints);
 
         JPanel profilesSection = new JBPanel<>(new BorderLayout(0, 4));
         profilesSection.add(new JBLabel("Launch profiles:"), BorderLayout.NORTH);
@@ -144,6 +156,7 @@ final class CodexSettingsDialog extends DialogWrapper {
                     fields.shortcutField.getText().trim());
         }
         settings.setLaunchProfiles(nonBlankProfileRows());
+        settings.setActiveChatOnly(activeChatOnlyCheckBox.isSelected());
         super.doOKAction();
     }
 
