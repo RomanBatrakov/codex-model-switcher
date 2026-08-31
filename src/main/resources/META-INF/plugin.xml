@@ -1,5 +1,5 @@
 <idea-plugin>
-  <version>1.2.0</version>
+  <version>1.3.0</version>
   <id>com.github.romanbatrakov.codexmodelswitcher</id>
   <name>Model Switcher for Codex CLI</name>
   <vendor email="batrakov.r.v@gmail.com" url="https://github.com/RomanBatrakov">Roman</vendor>
@@ -37,12 +37,10 @@
   ]]></description>
 
   <change-notes><![CDATA[
-    <p><b>1.2.0</b></p>
+    <p><b>1.3.0</b></p>
     <ul>
-      <li>Fixed a bug where opening a new chat in a second project could reuse the app server
-        already running for a different project, creating the chat in the wrong directory</li>
-      <li>Migrated off another internal platform API flagged by the Plugin Verifier
-        (terminal session creation)</li>
+      <li>Added a Settings option to apply a model preset to only the active chat tab,
+        instead of every open chat</li>
     </ul>
   ]]></change-notes>
 
