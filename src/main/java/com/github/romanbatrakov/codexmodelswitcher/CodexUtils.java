@@ -112,6 +112,6 @@ final class CodexUtils {
                 return plugin.getVersion();
             }
         }
-        return "1.3.0";
+        return "1.4.0";
     }
 }
