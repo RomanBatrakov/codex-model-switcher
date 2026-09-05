@@ -159,7 +159,7 @@ final class CodexWorkflow {
         try {
             URI endpoint = requireResolvedEndpoint(project);
             ModelPreset.requireModel(preset.model());
-            ModelPreset.requireEffort(preset.effort());
+            ModelPreset.requireEffort(preset.model(), preset.effort());
             String command = authEnvironmentPrefix(project) + CodexUtils.shellQuote(CodexUtils.codexExecutable().toString())
                     + " --remote " + CodexUtils.shellQuote(endpoint.toString())
                     + remoteAuthOption(project)

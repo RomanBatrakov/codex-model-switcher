@@ -153,7 +153,7 @@ public final class CodexAppServerClient implements Disposable {
         }
         try {
             ModelPreset.requireModel(preset.model());
-            ModelPreset.requireEffort(preset.effort());
+            ModelPreset.requireEffort(preset.model(), preset.effort());
         } catch (IllegalArgumentException error) {
             return CompletableFuture.failedFuture(error);
         }
@@ -184,7 +184,7 @@ public final class CodexAppServerClient implements Disposable {
         }
         try {
             ModelPreset.requireModel(preset.model());
-            ModelPreset.requireEffort(preset.effort());
+            ModelPreset.requireEffort(preset.model(), preset.effort());
         } catch (IllegalArgumentException error) {
             return CompletableFuture.failedFuture(error);
         }

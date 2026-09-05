@@ -10,11 +10,15 @@ import com.intellij.ui.table.JBTable;
 import org.jspecify.annotations.NonNull;
 
 import javax.swing.BoxLayout;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
+import javax.swing.JTextField;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
@@ -49,7 +53,7 @@ final class CodexSettingsDialog extends DialogWrapper {
         settings = CodexModelSwitcherSettings.getInstance();
         serverUrlField = new JBTextField(settings.serverUrl());
         Set<String> modelSuggestions = new LinkedHashSet<>(
-                List.of("gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.6-luna"));
+                List.of("gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-6-astra", "gpt-5.5", "gpt-5.4-mini"));
         for (ModelPreset.PresetId presetId : ModelPreset.PresetId.values()) {
             modelSuggestions.add(settings.model(presetId));
         }
@@ -211,7 +215,7 @@ final class CodexSettingsDialog extends DialogWrapper {
                 return "Model for \"" + fields.presetId.label() + "\" " + modelError;
             }
             String effort = fields.effort();
-            String effortError = ModelPreset.validateEffort(effort);
+            String effortError = ModelPreset.validateEffort(model, effort);
             if (effortError != null) {
                 return "Reasoning effort for \"" + fields.presetId.label() + "\" " + effortError;
             }
@@ -245,6 +249,7 @@ final class CodexSettingsDialog extends DialogWrapper {
         serverUrlField.setText(defaults.serverUrl);
         for (PresetFields fields : presetFields) {
             fields.modelField.getEditor().setItem(defaultsFor(fields.presetId, true));
+            fields.refreshEffortOptions();
             fields.effortField.setSelectedItem(defaultsFor(fields.presetId, false));
             fields.shortcutField.setText(defaultsShortcut(fields.presetId));
         }
@@ -276,9 +281,32 @@ final class CodexSettingsDialog extends DialogWrapper {
             modelField = new JComboBox<>(modelSuggestions.toArray(new String[0]));
             modelField.setEditable(true);
             modelField.setSelectedItem(settings.model(presetId));
-            effortField = new JComboBox<>(ModelPreset.EFFORT_OPTIONS.toArray(new String[0]));
+            effortField = new JComboBox<>(ModelPreset.effortOptionsFor(settings.model(presetId)).toArray(new String[0]));
             effortField.setSelectedItem(settings.effort(presetId));
             shortcutField = new JBTextField(settings.shortcut(presetId));
+
+            // Different models support different reasoning levels (e.g. "ultra"
+            // is Astra/Sol/Terra-only) -- keep the Reasoning dropdown limited to
+            // what the currently typed model actually supports, reacting to both
+            // picking a suggestion and free-form typing.
+            modelField.addActionListener(ignored -> refreshEffortOptions());
+            JTextField editorComponent = (JTextField) modelField.getEditor().getEditorComponent();
+            editorComponent.getDocument().addDocumentListener(new DocumentListener() {
+                @Override
+                public void insertUpdate(DocumentEvent event) {
+                    refreshEffortOptions();
+                }
+
+                @Override
+                public void removeUpdate(DocumentEvent event) {
+                    refreshEffortOptions();
+                }
+
+                @Override
+                public void changedUpdate(DocumentEvent event) {
+                    refreshEffortOptions();
+                }
+            });
         }
 
         private String model() {
@@ -287,6 +315,14 @@ final class CodexSettingsDialog extends DialogWrapper {
 
         private String effort() {
             return String.valueOf(effortField.getSelectedItem());
+        }
+
+        /** Repopulates the Reasoning dropdown for the currently typed model, keeping the current value if still valid. */
+        private void refreshEffortOptions() {
+            List<String> options = ModelPreset.effortOptionsFor(model());
+            String current = effort();
+            effortField.setModel(new DefaultComboBoxModel<>(options.toArray(new String[0])));
+            effortField.setSelectedItem(options.contains(current) ? current : options.get(0));
         }
     }
 }

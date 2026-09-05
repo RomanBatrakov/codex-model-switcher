@@ -86,7 +86,7 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
      */
     public void updatePreset(ModelPreset.PresetId presetId, String model, String effort, String shortcut) {
         String normalizedModel = ModelPreset.requireModel(model);
-        String normalizedEffort = ModelPreset.requireEffort(effort);
+        String normalizedEffort = ModelPreset.requireEffort(normalizedModel, effort);
         switch (presetId) {
             case TERRA_MEDIUM -> {
                 data.terraMediumModel = normalizedModel;
@@ -159,7 +159,7 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         if (!ModelPreset.isValidModel(data.terraMediumModel)) {
             data.terraMediumModel = "gpt-5.6-terra";
         }
-        if (!ModelPreset.isValidEffort(data.terraMediumEffort)) {
+        if (!ModelPreset.isValidEffort(data.terraMediumModel, data.terraMediumEffort)) {
             data.terraMediumEffort = "medium";
         }
         if (data.terraMediumShortcut == null || data.terraMediumShortcut.isBlank()) {
@@ -168,7 +168,7 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         if (!ModelPreset.isValidModel(data.terraXHighModel)) {
             data.terraXHighModel = "gpt-5.6-terra";
         }
-        if (!ModelPreset.isValidEffort(data.terraXHighEffort)) {
+        if (!ModelPreset.isValidEffort(data.terraXHighModel, data.terraXHighEffort)) {
             data.terraXHighEffort = "xhigh";
         }
         if (data.terraXHighShortcut == null || data.terraXHighShortcut.isBlank()) {
@@ -177,7 +177,7 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         if (!ModelPreset.isValidModel(data.solXHighModel)) {
             data.solXHighModel = "gpt-5.6-sol";
         }
-        if (!ModelPreset.isValidEffort(data.solXHighEffort)) {
+        if (!ModelPreset.isValidEffort(data.solXHighModel, data.solXHighEffort)) {
             data.solXHighEffort = "xhigh";
         }
         if (data.solXHighShortcut == null || data.solXHighShortcut.isBlank()) {
@@ -186,7 +186,7 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         if (!ModelPreset.isValidModel(data.lunaMaxModel)) {
             data.lunaMaxModel = "gpt-5.6-luna";
         }
-        if (!ModelPreset.isValidEffort(data.lunaMaxEffort)) {
+        if (!ModelPreset.isValidEffort(data.lunaMaxModel, data.lunaMaxEffort)) {
             data.lunaMaxEffort = "max";
         }
         if (data.lunaMaxShortcut == null || data.lunaMaxShortcut.isBlank()) {
