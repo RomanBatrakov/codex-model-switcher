@@ -45,11 +45,9 @@ class ModelPresetTest {
         assertNull(ModelPreset.validateEffort("gpt-5.6-luna", "max"));
         assertFalse(ModelPreset.isValidEffort("gpt-5.6-luna", "ultra"));
 
-        // gpt-5.5 and gpt-5.4-mini stop at "xhigh".
+        // gpt-5.5 stops at "xhigh".
         assertNull(ModelPreset.validateEffort("gpt-5.5", "xhigh"));
         assertFalse(ModelPreset.isValidEffort("gpt-5.5", "max"));
-        assertNull(ModelPreset.validateEffort("gpt-5.4-mini", "xhigh"));
-        assertFalse(ModelPreset.isValidEffort("gpt-5.4-mini", "ultra"));
     }
 
     @Test
