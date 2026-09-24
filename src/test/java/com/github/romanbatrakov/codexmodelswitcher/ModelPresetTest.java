@@ -36,12 +36,15 @@ class ModelPresetTest {
 
     @Test
     void testValidateEffortRestrictedPerKnownModel() {
-        // Astra/Sol/Terra support the full range, including "ultra".
+        // Astra/Sol (both generations) and Terra support the full range, including "ultra".
         assertNull(ModelPreset.validateEffort("gpt-6-astra", "ultra"));
+        assertNull(ModelPreset.validateEffort("gpt-6-sol", "ultra"));
         assertNull(ModelPreset.validateEffort("gpt-5.6-sol", "ultra"));
         assertNull(ModelPreset.validateEffort("gpt-5.6-terra", "ultra"));
 
-        // Luna supports up to "max", but not "ultra".
+        // Luna (both generations) supports up to "max", but not "ultra".
+        assertNull(ModelPreset.validateEffort("gpt-6-luna", "max"));
+        assertFalse(ModelPreset.isValidEffort("gpt-6-luna", "ultra"));
         assertNull(ModelPreset.validateEffort("gpt-5.6-luna", "max"));
         assertFalse(ModelPreset.isValidEffort("gpt-5.6-luna", "ultra"));
 
@@ -55,6 +58,12 @@ class ModelPresetTest {
         assertEquals(
                 List.of("low", "medium", "high", "xhigh", "max", "ultra"),
                 ModelPreset.effortOptionsFor("gpt-6-astra"));
+        assertEquals(
+                List.of("low", "medium", "high", "xhigh", "max", "ultra"),
+                ModelPreset.effortOptionsFor("gpt-6-sol"));
+        assertEquals(
+                List.of("low", "medium", "high", "xhigh", "max"),
+                ModelPreset.effortOptionsFor("gpt-6-luna"));
         assertEquals(
                 List.of("low", "medium", "high", "xhigh", "max"),
                 ModelPreset.effortOptionsFor("gpt-5.6-luna"));

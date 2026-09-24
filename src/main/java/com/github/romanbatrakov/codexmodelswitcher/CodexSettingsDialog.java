@@ -53,7 +53,8 @@ final class CodexSettingsDialog extends DialogWrapper {
         settings = CodexModelSwitcherSettings.getInstance();
         serverUrlField = new JBTextField(settings.serverUrl());
         Set<String> modelSuggestions = new LinkedHashSet<>(
-                List.of("gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-6-astra", "gpt-5.5"));
+                List.of("gpt-6-astra", "gpt-6-sol", "gpt-6-luna",
+                        "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.5"));
         for (ModelPreset.PresetId presetId : ModelPreset.PresetId.values()) {
             modelSuggestions.add(settings.model(presetId));
         }
