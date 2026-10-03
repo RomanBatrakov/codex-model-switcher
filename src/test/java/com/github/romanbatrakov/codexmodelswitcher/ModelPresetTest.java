@@ -38,6 +38,7 @@ class ModelPresetTest {
     void testValidateEffortRestrictedPerKnownModel() {
         // Astra/Sol (both generations) and Terra support the full range, including "ultra".
         assertNull(ModelPreset.validateEffort("gpt-6-astra", "ultra"));
+        assertNull(ModelPreset.validateEffort("gpt-6.1-sol", "ultra"));
         assertNull(ModelPreset.validateEffort("gpt-6-sol", "ultra"));
         assertNull(ModelPreset.validateEffort("gpt-5.6-sol", "ultra"));
         assertNull(ModelPreset.validateEffort("gpt-5.6-terra", "ultra"));

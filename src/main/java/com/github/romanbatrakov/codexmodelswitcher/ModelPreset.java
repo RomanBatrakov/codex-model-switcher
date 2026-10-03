@@ -24,6 +24,7 @@ record ModelPreset(PresetId id, String label, String model, String effort) {
      * actually supports.
      */
     private static final Map<String, List<String>> MODEL_EFFORT_OPTIONS = Map.of(
+            "gpt-6.1-sol", List.of("low", "medium", "high", "xhigh", "max", "ultra"),
             "gpt-6-astra", List.of("low", "medium", "high", "xhigh", "max", "ultra"),
             "gpt-6-sol", List.of("low", "medium", "high", "xhigh", "max", "ultra"),
             "gpt-6-luna", List.of("low", "medium", "high", "xhigh", "max"),
