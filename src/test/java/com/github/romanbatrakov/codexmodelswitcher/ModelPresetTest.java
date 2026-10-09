@@ -48,10 +48,6 @@ class ModelPresetTest {
         assertFalse(ModelPreset.isValidEffort("gpt-6-luna", "ultra"));
         assertNull(ModelPreset.validateEffort("gpt-5.6-luna", "max"));
         assertFalse(ModelPreset.isValidEffort("gpt-5.6-luna", "ultra"));
-
-        // gpt-5.5 stops at "xhigh".
-        assertNull(ModelPreset.validateEffort("gpt-5.5", "xhigh"));
-        assertFalse(ModelPreset.isValidEffort("gpt-5.5", "max"));
     }
 
     @Test
@@ -68,9 +64,6 @@ class ModelPresetTest {
         assertEquals(
                 List.of("low", "medium", "high", "xhigh", "max"),
                 ModelPreset.effortOptionsFor("gpt-5.6-luna"));
-        assertEquals(
-                List.of("low", "medium", "high", "xhigh"),
-                ModelPreset.effortOptionsFor("gpt-5.5"));
         assertEquals(ModelPreset.EFFORT_OPTIONS, ModelPreset.effortOptionsFor("unknown-model"));
         assertEquals(ModelPreset.EFFORT_OPTIONS, ModelPreset.effortOptionsFor(null));
     }
@@ -84,6 +77,6 @@ class ModelPresetTest {
         assertThrows(IllegalArgumentException.class,
                 () -> ModelPreset.requireEffort("gpt-5.6-sol", "invalid_effort"));
         assertThrows(IllegalArgumentException.class,
-                () -> ModelPreset.requireEffort("gpt-5.5", "ultra"));
+                () -> ModelPreset.requireEffort("gpt-6-luna", "ultra"));
     }
 }
