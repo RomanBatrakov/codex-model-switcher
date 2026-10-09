@@ -1,5 +1,5 @@
 <idea-plugin>
-  <version>1.7.0</version>
+  <version>1.8.0</version>
   <id>com.github.romanbatrakov.codexmodelswitcher</id>
   <name>Model Switcher for Codex CLI</name>
   <vendor email="batrakov.r.v@gmail.com" url="https://github.com/RomanBatrakov">Roman</vendor>
@@ -37,6 +37,11 @@
   ]]></description>
 
   <change-notes><![CDATA[
+    <p><b>1.8.0</b></p>
+    <ul>
+      <li>Removed gpt-5.5 from the model suggestions in Settings, dropped from Codex's own model list</li>
+    </ul>
+
     <p><b>1.7.0</b></p>
     <ul>
       <li>Added gpt-6.1-sol as a model suggestion in Settings</li>
