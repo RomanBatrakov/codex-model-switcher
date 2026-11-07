@@ -98,12 +98,10 @@ git diff --check
 Для сборки на macOS с JDK 25:
 
 ```bash
-JAVA_HOME=/Users/roman/Library/Java/JavaVirtualMachines/temurin-25.0.4/Contents/Home \
-GRADLE_USER_HOME=/tmp/codex-gradle-home \
-./gradlew test buildPlugin
+JAVA_HOME=$(/usr/libexec/java_home -v 25) ./gradlew test buildPlugin
 ```
 
-Если Gradle Wrapper ещё не добавлен в ветку, использовать установленный Gradle с теми же `JAVA_HOME` и `GRADLE_USER_HOME`.
+Не прописывать в документах и скриптах абсолютный путь к конкретному JDK: `java_home -v 25` находит установленный JDK 25 сам и переживает его обновления. `GRADLE_USER_HOME` не переопределять на `/tmp` — там кэш Gradle и IntelliJ Platform регулярно стирается и скачивается заново.
 
 Перед релизом дополнительно проверить:
 
@@ -113,7 +111,7 @@ GRADLE_USER_HOME=/tmp/codex-gradle-home \
 4. чистоту staged-списка;
 5. линейность истории (`git log --graph --oneline`).
 
-В проекте на текущий момент нет автоматических тестов (`test` может завершиться как `NO-SOURCE`), поэтому успешная компиляция и упаковка не заменяют ручную проверку в IntelliJ IDEA.
+Юнит-тесты (`src/test`) покрывают только чистую логику — валидацию, разбор и расчёты; UI и интеграцию с IDE они не проверяют. Поэтому успешные тесты, компиляция и упаковка не заменяют ручную проверку в IntelliJ IDEA.
 
 ## Рабочий цикл изменения
 
