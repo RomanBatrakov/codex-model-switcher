@@ -89,6 +89,8 @@
                 anchor="right"
                 factoryClass="com.github.romanbatrakov.codexmodelswitcher.CodexModelToolWindowFactory"/>
     <notificationGroup id="Codex Model Switcher" displayType="BALLOON" isLogByDefault="false"/>
+    <statusBarWidgetFactory id="CodexModelSwitcher.Usage"
+                            implementation="com.github.romanbatrakov.codexmodelswitcher.CodexUsageStatusBarWidgetFactory"/>
   </extensions>
 
   <actions>

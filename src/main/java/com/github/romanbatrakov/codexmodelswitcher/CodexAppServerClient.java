@@ -374,7 +374,7 @@ public final class CodexAppServerClient implements Disposable {
             "user_message".equals(optionalString(payload, "type")) ? firstString(payload, "message", "text") : null;
     }
 
-    private static Path codexSessionsDirectory() {
+    static Path codexSessionsDirectory() {
         String codexHome = System.getenv("CODEX_HOME");
         Path home = codexHome == null || codexHome.isBlank() ? Path.of(System.getProperty("user.home"), ".codex") :
             Path.of(codexHome);
