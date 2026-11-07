@@ -145,8 +145,13 @@ public final class CodexUsageTracker implements Disposable {
         snapshot = new Snapshot(List.copyOf(samples), !current.isEmpty());
     }
 
-    /** Reads only the complete lines appended since the last call, remembering the byte offset. */
-    private static void readAppended(Path path, FileState state) throws IOException {
+    /**
+     * Reads only the complete lines appended since the last call, remembering
+     * the byte offset. A line is dropped as soon as it is known to be
+     * irrelevant (see {@link #irrelevant}), so the large tool outputs that make
+     * up most of a transcript are never buffered beyond the first 64 KB.
+     */
+    static void readAppended(Path path, FileState state) throws IOException {
         long size = Files.size(path);
         if (size < state.offset) {
             state.reset();
@@ -171,7 +176,9 @@ public final class CodexUsageTracker implements Disposable {
                     }
                     if (!skipping) {
                         line.write(bytes, start, index - start);
-                        processLine(line, state);
+                        if (!irrelevant(line)) {
+                            processLine(line, state);
+                        }
                     }
                     line.reset();
                     skipping = false;
@@ -180,8 +187,8 @@ public final class CodexUsageTracker implements Disposable {
                 }
                 if (!skipping) {
                     line.write(bytes, start, length - start);
-                    if (line.size() > MAX_LINE_BYTES) {
-                        // Never hold a runaway line in memory; drop it up to its newline.
+                    if (irrelevant(line)) {
+                        // Decided already: skip the rest of this line up to its newline.
                         line.reset();
                         skipping = true;
                     }
@@ -194,13 +201,24 @@ public final class CodexUsageTracker implements Disposable {
         }
     }
 
-    private static void processLine(LineBuffer bytes, FileState state) {
-        if (bytes.size() > SMALL_LINE_BYTES) {
-            String head = new String(bytes.buffer(), 0, TYPE_PREFIX_BYTES, StandardCharsets.UTF_8);
-            if (TYPE_MARKERS.stream().noneMatch(head::contains)) {
-                return;
-            }
+    /**
+     * Whether a (possibly still incomplete) line can be dropped: it is over
+     * {@link #MAX_LINE_BYTES}, or it is over {@link #SMALL_LINE_BYTES} and its
+     * first bytes don't name one of the two record types we read. Small lines
+     * are always parsed in full.
+     */
+    private static boolean irrelevant(LineBuffer line) {
+        if (line.size() > MAX_LINE_BYTES) {
+            return true;
         }
+        if (line.size() <= SMALL_LINE_BYTES) {
+            return false;
+        }
+        String head = new String(line.buffer(), 0, TYPE_PREFIX_BYTES, StandardCharsets.UTF_8);
+        return TYPE_MARKERS.stream().noneMatch(head::contains);
+    }
+
+    private static void processLine(LineBuffer bytes, FileState state) {
         String line = bytes.toString(StandardCharsets.UTF_8);
         CodexUsageParser.UsageEvent usage = CodexUsageParser.parseUsage(line);
         if (usage != null) {
@@ -231,10 +249,10 @@ public final class CodexUsageTracker implements Disposable {
     }
 
     /** What has been read from one transcript file so far. */
-    private static final class FileState {
-        private long offset;
-        private String cwd;
-        private final List<CodexUsageParser.UsageEvent> events = new ArrayList<>();
+    static final class FileState {
+        long offset;
+        String cwd;
+        final List<CodexUsageParser.UsageEvent> events = new ArrayList<>();
 
         private void reset() {
             offset = 0;
