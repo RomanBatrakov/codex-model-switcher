@@ -80,15 +80,38 @@ class CodexUsageStatsTest {
         assertFalse(filter.test("/work/other"));
     }
 
+    private static String cachedShare(long total, long nonCached) {
+        return CodexUsageStats.formatCachedShare(new CodexUsageStats.Usage(0, 0, 1, total, nonCached));
+    }
+
     @Test
     void formatsCachedShare() {
-        assertEquals("97.6%", CodexUsageStats.formatCachedShare(1_000, 24));
-        assertEquals("0.0%", CodexUsageStats.formatCachedShare(1_000, 1_000));
-        assertEquals("100.0%", CodexUsageStats.formatCachedShare(1_000, 0));
-        assertEquals("—", CodexUsageStats.formatCachedShare(0, 0));
+        assertEquals("97.6%", cachedShare(1_000, 24));
+        assertEquals("0.0%", cachedShare(1_000, 1_000));
+        assertEquals("100.0%", cachedShare(1_000, 0));
+        assertEquals("—", cachedShare(0, 0));
+        assertEquals("—", CodexUsageStats.formatCachedShare(CodexUsageStats.Usage.NONE));
         // Inconsistent input is clamped instead of going negative or above 100%.
-        assertEquals("0.0%", CodexUsageStats.formatCachedShare(1_000, 2_000));
-        assertEquals("100.0%", CodexUsageStats.formatCachedShare(1_000, -5));
+        assertEquals("0.0%", cachedShare(1_000, 2_000));
+        assertEquals("100.0%", cachedShare(1_000, -5));
+    }
+
+    @Test
+    void averagesMatchSeparateAverages() {
+        List<CodexUsageStats.Sample> samples = List.of(
+                sample(NOW - 2 * BUCKET, "a", 5_000, 1_000, "/p"),
+                sample(NOW - 3 * CodexUsageStats.DAY_MILLIS, "b", 7_000, 2_000, "/p"),
+                sample(NOW - 20 * CodexUsageStats.DAY_MILLIS, "a", 9_000, 3_000, "/p"),
+                sample(NOW - 40 * CodexUsageStats.DAY_MILLIS, "c", 11_000, 0, "/p"),
+                sample(NOW + 1_000, "d", 13_000, 0, "/p"));
+        long[] periods = {CodexUsageStats.DAY_MILLIS, 7 * CodexUsageStats.DAY_MILLIS, 30 * CodexUsageStats.DAY_MILLIS};
+        CodexUsageStats.Usage[] together = CodexUsageStats.averages(samples, NOW, periods, _ -> true);
+        for (int i = 0; i < periods.length; i++) {
+            assertEquals(CodexUsageStats.average(samples, NOW, periods[i], _ -> true), together[i]);
+        }
+        assertEquals(5_000, together[0].totalTokens());
+        assertEquals(12_000, together[1].totalTokens());
+        assertEquals(21_000, together[2].totalTokens());
     }
 
     @Test
@@ -96,5 +119,11 @@ class CodexUsageStatsTest {
         assertEquals("850", CodexUsageStats.formatTokens(850));
         assertEquals("4.2k", CodexUsageStats.formatTokens(4_200));
         assertEquals("1.3M", CodexUsageStats.formatTokens(1_300_000));
+        assertEquals("2.1B", CodexUsageStats.formatTokens(2_100_000_000));
+        // Rounding never prints "1000" of a unit: it moves up to the next one.
+        assertEquals("999", CodexUsageStats.formatTokens(999.4));
+        assertEquals("1.0k", CodexUsageStats.formatTokens(999.6));
+        assertEquals("1.0M", CodexUsageStats.formatTokens(999_960));
+        assertEquals("1.0B", CodexUsageStats.formatTokens(999_960_000));
     }
 }

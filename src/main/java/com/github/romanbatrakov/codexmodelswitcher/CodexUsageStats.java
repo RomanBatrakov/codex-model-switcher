@@ -2,6 +2,7 @@ package com.github.romanbatrakov.codexmodelswitcher;
 
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -59,26 +60,55 @@ final class CodexUsageStats {
 
     /** Average per-agent usage while agents were active, over the last {@code periodMillis}. */
     static Usage average(List<Sample> samples, long now, long periodMillis, Predicate<String> cwdFilter) {
-        long from = now - periodMillis;
-        long total = 0;
-        long cached = 0;
-        Map<Long, Set<String>> agentsByBucket = new HashMap<>();
-        Set<String> agents = new HashSet<>();
+        return averages(samples, now, new long[]{periodMillis}, cwdFilter)[0];
+    }
+
+    /**
+     * {@link #average} for several periods at once, in a single pass over the
+     * samples -- each result is exactly what {@code average} returns for that
+     * period alone.
+     */
+    static Usage[] averages(List<Sample> samples, long now, long[] periodsMillis, Predicate<String> cwdFilter) {
+        int periods = periodsMillis.length;
+        long[] from = new long[periods];
+        long earliest = now;
+        long[] total = new long[periods];
+        long[] cached = new long[periods];
+        List<Set<String>> agents = new ArrayList<>(periods);
+        List<Map<Long, Set<String>>> agentsByBucket = new ArrayList<>(periods);
+        for (int i = 0; i < periods; i++) {
+            from[i] = now - periodsMillis[i];
+            earliest = Math.min(earliest, from[i]);
+            agents.add(new HashSet<>());
+            agentsByBucket.add(new HashMap<>());
+        }
         for (Sample sample : samples) {
-            if (sample.timestampMillis() > from && sample.timestampMillis() <= now && cwdFilter.test(sample.cwd())) {
-                total += sample.totalTokens();
-                cached += sample.cachedInputTokens();
-                agents.add(sample.threadId());
-                agentsByBucket.computeIfAbsent(Math.floorDiv(sample.timestampMillis(), BUCKET_MILLIS), _ -> new HashSet<>())
-                        .add(sample.threadId());
+            long timestamp = sample.timestampMillis();
+            if (timestamp <= earliest || timestamp > now || !cwdFilter.test(sample.cwd())) {
+                continue;
+            }
+            long bucket = Math.floorDiv(timestamp, BUCKET_MILLIS);
+            for (int i = 0; i < periods; i++) {
+                if (timestamp > from[i]) {
+                    total[i] += sample.totalTokens();
+                    cached[i] += sample.cachedInputTokens();
+                    agents.get(i).add(sample.threadId());
+                    agentsByBucket.get(i).computeIfAbsent(bucket, _ -> new HashSet<>()).add(sample.threadId());
+                }
             }
         }
-        long agentBuckets = agentsByBucket.values().stream().mapToLong(Set::size).sum();
-        if (agentBuckets == 0) {
-            return Usage.NONE;
+        Usage[] result = new Usage[periods];
+        for (int i = 0; i < periods; i++) {
+            long agentBuckets = agentsByBucket.get(i).values().stream().mapToLong(Set::size).sum();
+            if (agentBuckets == 0) {
+                result[i] = Usage.NONE;
+                continue;
+            }
+            double agentMinutes = agentBuckets * (BUCKET_MILLIS / 60_000.0);
+            result[i] = new Usage(total[i] / agentMinutes, (total[i] - cached[i]) / agentMinutes,
+                    agents.get(i).size(), total[i], total[i] - cached[i]);
         }
-        double agentMinutes = agentBuckets * (BUCKET_MILLIS / 60_000.0);
-        return new Usage(total / agentMinutes, (total - cached) / agentMinutes, agents.size(), total, total - cached);
+        return result;
     }
 
     /** Whether a session's working directory is the project directory or somewhere inside it. */
@@ -123,24 +153,34 @@ final class CodexUsageStats {
     /**
      * Share of cached input in all tokens, e.g. {@code 97.6%}: totalTokens
      * already includes the cached input, and nonCachedTokens is total minus
-     * cached. {@code —} when there are no tokens; always within 0–100%.
+     * cached, so the cached part is their difference. {@code —} when there
+     * are no tokens.
      */
-    static String formatCachedShare(long totalTokens, long nonCachedTokens) {
-        if (totalTokens <= 0) {
+    static String formatCachedShare(Usage usage) {
+        long total = usage.totalTokens();
+        if (total <= 0) {
             return "—";
         }
-        long cached = Math.min(totalTokens, Math.max(0, totalTokens - nonCachedTokens));
-        return String.format(Locale.ROOT, "%.1f%%", cached * 100.0 / totalTokens);
+        // The parser already keeps cached within [0, total]; the clamp only
+        // guarantees the printed share can never leave 0-100%.
+        long cached = Math.clamp(total - usage.nonCachedTokens(), 0, total);
+        return String.format(Locale.ROOT, "%.1f%%", cached * 100.0 / total);
     }
 
-    /** Compact token count: 850, 4.2k, 1.3M. */
+    /**
+     * Compact token count: 850, 4.2k, 1.3M, 2.1B. Thresholds sit where
+     * rounding would otherwise print {@code 1000.0k} or {@code 1000.0M}.
+     */
     static String formatTokens(double value) {
-        if (value < 1_000) {
+        if (value < 999.5) {
             return String.valueOf(Math.round(value));
         }
-        if (value < 1_000_000) {
+        if (value < 999_950) {
             return String.format(Locale.ROOT, "%.1fk", value / 1_000);
         }
-        return String.format(Locale.ROOT, "%.1fM", value / 1_000_000);
+        if (value < 999_950_000) {
+            return String.format(Locale.ROOT, "%.1fM", value / 1_000_000);
+        }
+        return String.format(Locale.ROOT, "%.1fB", value / 1_000_000_000);
     }
 }

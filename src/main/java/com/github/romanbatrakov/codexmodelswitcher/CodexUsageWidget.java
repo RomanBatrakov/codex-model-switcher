@@ -23,8 +23,10 @@ import javax.swing.SwingConstants;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.Point;
 import java.awt.event.MouseEvent;
 import java.util.List;
@@ -41,8 +43,12 @@ import java.util.function.Predicate;
 final class CodexUsageWidget implements StatusBarWidget, StatusBarWidget.TextPresentation {
     static final String ID = "CodexModelSwitcher.Usage";
 
-    private static final int[] PERIOD_DAYS = {1, 7, 30};
+    private static final long[] PERIOD_MILLIS =
+            {CodexUsageStats.DAY_MILLIS, 7 * CodexUsageStats.DAY_MILLIS, 30 * CodexUsageStats.DAY_MILLIS};
     private static final String[] PERIOD_LABELS = {"24h", "7d", "30d"};
+    /** Widest strings the value columns can show, so both tabs share one column layout. */
+    private static final String TOKENS_TEMPLATE = "999.9M";
+    private static final String SHARE_TEMPLATE = "100.0%";
     /** Period label plus Uncached, Total and Cached. */
     private static final int COLUMNS = 4;
     /** Unscaled vertical gap between table rows. */
@@ -155,10 +161,7 @@ final class CodexUsageWidget implements StatusBarWidget, StatusBarWidget.TextPre
         panel.setBorder(JBUI.Borders.empty(10, 4, 2, 4));
 
         CodexUsageStats.Usage current = CodexUsageStats.current(samples, now, filter);
-        CodexUsageStats.Usage[] averages = new CodexUsageStats.Usage[PERIOD_DAYS.length];
-        for (int i = 0; i < PERIOD_DAYS.length; i++) {
-            averages[i] = CodexUsageStats.average(samples, now, PERIOD_DAYS[i] * CodexUsageStats.DAY_MILLIS, filter);
-        }
+        CodexUsageStats.Usage[] averages = CodexUsageStats.averages(samples, now, PERIOD_MILLIS, filter);
 
         int row = 0;
         add(panel, statusRow(current.agents()), 0, row++, COLUMNS, 0);
@@ -167,33 +170,33 @@ final class CodexUsageWidget implements StatusBarWidget, StatusBarWidget.TextPre
         add(panel, caption("Uncached"), 1, row, 1, 0);
         add(panel, caption("Total"), 2, row, 1, 0);
         add(panel, caption("Cached"), 3, row++, 1, 0);
-        for (int i = 0; i < PERIOD_DAYS.length; i++) {
+        for (int i = 0; i < PERIOD_MILLIS.length; i++) {
             CodexUsageStats.Usage usage = averages[i];
             boolean empty = usage.totalTokens() <= 0;
             add(panel, new JBLabel(PERIOD_LABELS[i]), 0, row, 1, ROW_GAP);
-            add(panel, number(empty ? "—" : CodexUsageStats.formatTokens(usage.nonCachedTokens())), 1, row, 1, ROW_GAP);
-            add(panel, number(empty ? "—" : CodexUsageStats.formatTokens(usage.totalTokens())), 2, row, 1, ROW_GAP);
-            add(panel, number(CodexUsageStats.formatCachedShare(usage.totalTokens(), usage.nonCachedTokens())),
-                    3, row++, 1, ROW_GAP);
+            add(panel, number(tokens(empty, usage.nonCachedTokens()), TOKENS_TEMPLATE), 1, row, 1, ROW_GAP);
+            add(panel, number(tokens(empty, usage.totalTokens()), TOKENS_TEMPLATE), 2, row, 1, ROW_GAP);
+            add(panel, number(CodexUsageStats.formatCachedShare(usage), SHARE_TEMPLATE), 3, row++, 1, ROW_GAP);
         }
 
         row = sectionHeader(panel, "AVERAGE SPEED", row);
-        for (int i = 0; i < PERIOD_DAYS.length; i++) {
+        for (int i = 0; i < PERIOD_MILLIS.length; i++) {
             CodexUsageStats.Usage usage = averages[i];
             boolean empty = usage.agents() == 0;
             add(panel, new JBLabel(PERIOD_LABELS[i]), 0, row, 1, ROW_GAP);
-            add(panel, number(empty ? "—" : CodexUsageStats.formatTokens(usage.nonCachedTokensPerMinute())),
-                    1, row, 1, ROW_GAP);
+            add(panel, number(tokens(empty, usage.nonCachedTokensPerMinute()), TOKENS_TEMPLATE), 1, row, 1, ROW_GAP);
             if (!empty) {
-                JBLabel unit = caption("tok/min");
-                GridBagConstraints constraints = constraints(2, row, 2, ROW_GAP);
-                constraints.anchor = GridBagConstraints.WEST;
-                constraints.insets = JBUI.insets(ROW_GAP, 6, 0, 0);
-                panel.add(unit, constraints);
+                panel.add(caption("tok/min"),
+                        cell(2, row, 2, JBUI.insets(ROW_GAP, 6, 0, 0), GridBagConstraints.WEST));
             }
             row++;
         }
         return panel;
+    }
+
+    /** A token count or rate, or {@code —} when the period has no data. */
+    private static String tokens(boolean empty, double value) {
+        return empty ? "—" : CodexUsageStats.formatTokens(value);
     }
 
     private static JComponent statusRow(int agents) {
@@ -222,9 +225,7 @@ final class CodexUsageWidget implements StatusBarWidget, StatusBarWidget.TextPre
         label.setFont(JBFont.small().asBold());
         label.setForeground(JBUI.CurrentTheme.ContextHelp.FOREGROUND);
         add(panel, label, 0, row++, COLUMNS, 16);
-        GridBagConstraints line = constraints(0, row++, COLUMNS, 4);
-        line.insets = JBUI.insets(4, 0, 2, 0);
-        panel.add(new JSeparator(), line);
+        panel.add(new JSeparator(), cell(0, row++, COLUMNS, JBUI.insets(4, 0, 2, 0), GridBagConstraints.WEST));
         return row;
     }
 
@@ -235,30 +236,40 @@ final class CodexUsageWidget implements StatusBarWidget, StatusBarWidget.TextPre
         return label;
     }
 
-    private static JBLabel number(String text) {
-        return new JBLabel(text, SwingConstants.RIGHT);
+    /**
+     * A right-aligned value at least as wide as {@code template} (the widest
+     * value its column can show). Both tabs then get the same column widths,
+     * so nothing shifts sideways when switching between them.
+     */
+    private static JBLabel number(String text, String template) {
+        JBLabel label = new JBLabel(text, SwingConstants.RIGHT);
+        Dimension size = label.getPreferredSize();
+        int width = Math.max(size.width, label.getFontMetrics(label.getFont()).stringWidth(template));
+        label.setPreferredSize(new Dimension(width, size.height));
+        return label;
     }
 
     /**
      * Column 0 (labels) hugs the left edge; value columns are right-aligned
-     * with a gap before them. A component spanning all columns stretches.
+     * with a gap before them. {@code top} is in unscaled pixels, like every
+     * other JBUI size.
      */
     private static void add(JPanel panel, JComponent component, int column, int row, int width, int top) {
-        panel.add(component, constraints(column, row, width, top));
+        panel.add(component, cell(column, row, width, JBUI.insets(top, column == 0 ? 0 : 18, 0, 0),
+                column == 0 ? GridBagConstraints.WEST : GridBagConstraints.EAST));
     }
 
-    /** {@code top} is in unscaled pixels, like every other JBUI size. */
-    private static GridBagConstraints constraints(int column, int row, int width, int top) {
+    /** A grid cell; a component spanning all columns stretches across them. */
+    private static GridBagConstraints cell(int column, int row, int width, Insets insets, int anchor) {
         GridBagConstraints constraints = new GridBagConstraints();
         constraints.gridx = column;
         constraints.gridy = row;
         constraints.gridwidth = width;
-        constraints.insets = JBUI.insets(top, column == 0 ? 0 : 18, 0, 0);
+        constraints.insets = insets;
+        constraints.anchor = anchor;
         if (width == COLUMNS) {
             constraints.fill = GridBagConstraints.HORIZONTAL;
             constraints.weightx = 1;
-        } else {
-            constraints.anchor = column == 0 ? GridBagConstraints.WEST : GridBagConstraints.EAST;
         }
         return constraints;
     }
