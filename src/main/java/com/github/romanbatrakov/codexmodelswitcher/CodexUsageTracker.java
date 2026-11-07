@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -113,7 +114,7 @@ public final class CodexUsageTracker implements Disposable {
         // file in the directory of the day it started.
         LocalDate today = LocalDate.now();
         for (LocalDate date = today.minusDays(HISTORY_DAYS); !date.isAfter(today.plusDays(1)); date = date.plusDays(1)) {
-            Path directory = root.resolve(String.format("%04d/%02d/%02d",
+            Path directory = root.resolve(String.format(Locale.ROOT, "%04d/%02d/%02d",
                     date.getYear(), date.getMonthValue(), date.getDayOfMonth()));
             if (!Files.isDirectory(directory)) {
                 continue;
