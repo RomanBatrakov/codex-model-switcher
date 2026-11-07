@@ -22,7 +22,9 @@ import java.util.List;
 import java.util.Base64;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.security.SecureRandom;
 
 /**
@@ -46,6 +48,7 @@ public final class CodexServerStarter implements Disposable {
     private Path authTokenFile;
     private String authToken;
     private URI resolvedEndpoint;
+    private CompletableFuture<Void> pendingStart;
 
     CodexServerStarter(Project project) {
         this.project = project;
@@ -64,10 +67,33 @@ public final class CodexServerStarter implements Disposable {
 
     /**
      * What {@link #prepareStart()} decided: where this project's server
-     * listens, and the shell command to start it -- or null when an already
-     * running server was adopted and no terminal is needed.
+     * listens, the shell command to start it, and the fresh capability token
+     * it will use -- command and token are null when an already running
+     * server was adopted and no terminal is needed. The token only replaces
+     * the current one once {@link #openServerTerminal(Launch)} has actually
+     * started the server; until then the current token stays valid.
      */
-    record Launch(URI endpoint, String command) {
+    record Launch(URI endpoint, String command, Path tokenFile, String token) {
+    }
+
+    /**
+     * Joins the server start already in progress for this project, or begins
+     * a new one via {@code start}. Two actions clicked while the server is
+     * down then share one start instead of racing two of them, where the
+     * second would replace the token file the first one's command uses.
+     */
+    synchronized CompletableFuture<Void> startOnce(Supplier<CompletableFuture<Void>> start) {
+        if (pendingStart == null || pendingStart.isDone()) {
+            pendingStart = start.get();
+        }
+        return pendingStart;
+    }
+
+    /** Throws away a launch that will never run, e.g. because the project was closed first. */
+    void discard(Launch launch) {
+        if (launch.tokenFile() != null) {
+            deleteQuietly(launch.tokenFile());
+        }
     }
 
     /**
@@ -100,7 +126,7 @@ public final class CodexServerStarter implements Disposable {
             }
             if (adoptIfOwnServer(candidate)) {
                 resolvedEndpoint = candidate;
-                return new Launch(candidate, null);
+                return new Launch(candidate, null, null, null);
             }
             lastConflict = new IOException("Port " + port + " on " + candidate.getHost()
                     + " is already in use by another process. Stop it or change the app-server address in "
@@ -121,14 +147,12 @@ public final class CodexServerStarter implements Disposable {
             deleteQuietly(newAuthTokenFile);
             throw error;
         }
-        deleteAuthTokenFile();
-        authTokenFile = newAuthTokenFile;
-        authToken = newAuthToken;
         return new Launch(endpoint, CodexUtils.shellQuote(codexExecutable.toString())
                 + " app-server --listen "
                 + CodexUtils.shellQuote(endpoint.toString())
                 + " --ws-auth capability-token --ws-token-file "
-                + CodexUtils.shellQuote(newAuthTokenFile.toString()));
+                + CodexUtils.shellQuote(newAuthTokenFile.toString()),
+                newAuthTokenFile, newAuthToken);
     }
 
     /**
@@ -159,7 +183,12 @@ public final class CodexServerStarter implements Disposable {
             String directory = project.getBasePath() == null ? System.getProperty("user.dir") : project.getBasePath();
             terminal = CodexUtils.openTerminalSession(project, directory, "Codex Server");
             terminal.sendCommandToExecute(launch.command());
+            // Endpoint, token and terminal switch over together, only now that
+            // the new server is really starting.
             synchronized (this) {
+                deleteAuthTokenFile();
+                authTokenFile = launch.tokenFile();
+                authToken = launch.token();
                 serverTerminal = terminal;
                 resolvedEndpoint = launch.endpoint();
             }
@@ -171,7 +200,9 @@ public final class CodexServerStarter implements Disposable {
                     // The terminal may already have been closed by the IDE.
                 }
             }
+            discard(launch);
             synchronized (this) {
+                // The previous server's terminal is gone too, so its token is useless.
                 deleteAuthTokenFile();
             }
             throw error;

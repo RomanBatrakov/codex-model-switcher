@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -120,7 +121,10 @@ final class CodexWorkflow {
                 .thenCompose(Function.identity())
                 .handle((ignored, error) -> error == null
                         ? CompletableFuture.<Void>completedFuture(null)
-                        : startServerTerminal(project).thenCompose(ignoredAgain -> waitForServer(project, 16)))
+                        // Shared with any other action started meanwhile, including
+                        // the wait, so nobody starts a second server while the first boots.
+                        : CodexServerStarter.getInstance(project).startOnce(() -> startServerTerminal(project)
+                                .thenCompose(ignoredAgain -> waitForServer(project, 16))))
                 .thenCompose(Function.identity());
     }
 
@@ -139,14 +143,22 @@ final class CodexWorkflow {
                 }, AppExecutorUtil.getAppExecutorService())
                 .thenCompose(launch -> {
                     CompletableFuture<Void> terminalCreated = new CompletableFuture<>();
+                    // No expiry condition here: a skipped runnable would leave this
+                    // future -- and every action waiting on it -- pending forever.
                     ApplicationManager.getApplication().invokeLater(() -> {
+                        if (project.isDisposed()) {
+                            starter.discard(launch);
+                            terminalCreated.completeExceptionally(
+                                    new CancellationException("The project was closed."));
+                            return;
+                        }
                         try {
                             starter.openServerTerminal(launch);
                             terminalCreated.complete(null);
                         } catch (Throwable error) {
                             terminalCreated.completeExceptionally(error);
                         }
-                    }, project.getDisposed());
+                    });
                     return terminalCreated;
                 });
     }
