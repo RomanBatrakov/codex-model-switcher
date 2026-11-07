@@ -21,14 +21,6 @@ final class CodexUsageParser {
     record UsageEvent(long timestampMillis, String threadId, long totalTokens, long cachedInputTokens) {
     }
 
-    /** One rate-limit window, e.g. the 5-hour or the weekly limit. */
-    record RateLimit(int windowMinutes, double usedPercent, long resetsAtEpochSeconds) {
-    }
-
-    /** The primary and secondary limits as last reported by Codex; either may be null. */
-    record RateLimits(long timestampMillis, RateLimit primary, RateLimit secondary) {
-    }
-
     /** Parses a {@code token_usage_record} line, the one record Codex writes per model response. */
     static UsageEvent parseUsage(String line) {
         // Cheap pre-check: most lines are large tool outputs that are never worth parsing.
@@ -54,26 +46,6 @@ final class CodexUsageParser {
         return new UsageEvent(timestamp, threadId, total, cached);
     }
 
-    /** Parses the {@code rate_limits} part of a {@code token_count} event. */
-    static RateLimits parseRateLimits(String line) {
-        if (!line.contains("\"token_count\"") || !line.contains("\"rate_limits\"")) {
-            return null;
-        }
-        JsonObject record = parse(line);
-        JsonObject payload = object(record, "payload");
-        if (payload == null || !"token_count".equals(string(payload, "type"))) {
-            return null;
-        }
-        Long timestamp = timestamp(record);
-        JsonObject limits = object(payload, "rate_limits");
-        if (timestamp == null || limits == null) {
-            return null;
-        }
-        RateLimit primary = rateLimit(object(limits, "primary"));
-        RateLimit secondary = rateLimit(object(limits, "secondary"));
-        return primary == null && secondary == null ? null : new RateLimits(timestamp, primary, secondary);
-    }
-
     /** The working directory of a {@code session_meta} line, i.e. the project the session belongs to. */
     static String parseSessionCwd(String line) {
         if (!line.contains("\"session_meta\"")) {
@@ -85,23 +57,6 @@ final class CodexUsageParser {
         }
         String cwd = string(object(record, "payload"), "cwd");
         return cwd == null || cwd.isBlank() ? null : cwd;
-    }
-
-    private static RateLimit rateLimit(JsonObject value) {
-        if (value == null || !value.has("used_percent")) {
-            return null;
-        }
-        int window = (int) number(value, "window_minutes");
-        double used;
-        try {
-            used = value.get("used_percent").getAsDouble();
-        } catch (RuntimeException ignored) {
-            return null;
-        }
-        if (window <= 0 || used < 0) {
-            return null;
-        }
-        return new RateLimit(window, Math.min(used, 100), number(value, "resets_at"));
     }
 
     private static JsonObject parse(String line) {

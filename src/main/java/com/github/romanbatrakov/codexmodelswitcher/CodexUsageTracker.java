@@ -43,8 +43,7 @@ public final class CodexUsageTracker implements Disposable {
     // small and name their type near the very start, so only peek at a prefix.
     private static final int SMALL_LINE_BYTES = 64 * 1024;
     private static final int TYPE_PREFIX_BYTES = 512;
-    private static final List<String> TYPE_MARKERS =
-            List.of("\"token_usage_record\"", "\"token_count\"", "\"session_meta\"");
+    private static final List<String> TYPE_MARKERS = List.of("\"token_usage_record\"", "\"session_meta\"");
 
     // Guards `files` only. Deliberately separate from `this` (listener/schedule
     // bookkeeping): the first refresh can take seconds, and widgets register
@@ -56,8 +55,8 @@ public final class CodexUsageTracker implements Disposable {
     private ScheduledFuture<?> refreshTask;
 
     /** An immutable view of everything collected so far. */
-    record Snapshot(List<CodexUsageStats.Sample> samples, CodexUsageParser.RateLimits rateLimits, boolean hasSessions) {
-        static final Snapshot EMPTY = new Snapshot(List.of(), null, false);
+    record Snapshot(List<CodexUsageStats.Sample> samples, boolean hasSessions) {
+        static final Snapshot EMPTY = new Snapshot(List.of(), false);
     }
 
     /** Returns the application-level singleton instance. */
@@ -129,7 +128,6 @@ public final class CodexUsageTracker implements Disposable {
         }
         files.keySet().retainAll(current);
         List<CodexUsageStats.Sample> samples = new ArrayList<>();
-        CodexUsageParser.RateLimits latestLimits = null;
         for (Path path : current) {
             FileState state = files.computeIfAbsent(path, _ -> new FileState());
             try {
@@ -142,12 +140,8 @@ public final class CodexUsageTracker implements Disposable {
                 samples.add(new CodexUsageStats.Sample(event.timestampMillis(), event.threadId(),
                         event.totalTokens(), event.cachedInputTokens(), state.cwd));
             }
-            if (state.rateLimits != null
-                    && (latestLimits == null || state.rateLimits.timestampMillis() > latestLimits.timestampMillis())) {
-                latestLimits = state.rateLimits;
-            }
         }
-        snapshot = new Snapshot(List.copyOf(samples), latestLimits, !current.isEmpty());
+        snapshot = new Snapshot(List.copyOf(samples), !current.isEmpty());
     }
 
     /** Reads only the complete lines appended since the last call, remembering the byte offset. */
@@ -212,13 +206,6 @@ public final class CodexUsageTracker implements Disposable {
             state.events.add(usage);
             return;
         }
-        CodexUsageParser.RateLimits limits = CodexUsageParser.parseRateLimits(line);
-        if (limits != null) {
-            if (state.rateLimits == null || limits.timestampMillis() >= state.rateLimits.timestampMillis()) {
-                state.rateLimits = limits;
-            }
-            return;
-        }
         String cwd = CodexUsageParser.parseSessionCwd(line);
         if (cwd != null) {
             state.cwd = cwd;
@@ -246,13 +233,11 @@ public final class CodexUsageTracker implements Disposable {
     private static final class FileState {
         private long offset;
         private String cwd;
-        private CodexUsageParser.RateLimits rateLimits;
         private final List<CodexUsageParser.UsageEvent> events = new ArrayList<>();
 
         private void reset() {
             offset = 0;
             cwd = null;
-            rateLimits = null;
             events.clear();
         }
     }

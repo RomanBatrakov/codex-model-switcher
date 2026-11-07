@@ -75,16 +75,9 @@ class CodexUsageStatsTest {
     }
 
     @Test
-    void formatsNumbersAndLimits() {
+    void formatsNumbers() {
         assertEquals("850", CodexUsageStats.formatTokens(850));
         assertEquals("4.2k", CodexUsageStats.formatTokens(4_200));
         assertEquals("1.3M", CodexUsageStats.formatTokens(1_300_000));
-        assertEquals("5h", CodexUsageStats.windowLabel(300));
-        assertEquals("wk", CodexUsageStats.windowLabel(10_080));
-        assertEquals("1d", CodexUsageStats.windowLabel(1_440));
-
-        assertTrue(CodexUsageStats.isCurrent(new CodexUsageParser.RateLimit(300, 9, NOW / 1000 + 60), NOW));
-        assertFalse(CodexUsageStats.isCurrent(new CodexUsageParser.RateLimit(300, 9, NOW / 1000 - 60), NOW));
-        assertFalse(CodexUsageStats.isCurrent(null, NOW));
     }
 }

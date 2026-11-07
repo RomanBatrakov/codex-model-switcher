@@ -103,23 +103,4 @@ final class CodexUsageStats {
         }
         return String.format(Locale.ROOT, "%.1fM", value / 1_000_000);
     }
-
-    /** Short label for a rate-limit window: 300 minutes is "5h", 10080 minutes is "wk". */
-    static String windowLabel(int minutes) {
-        if (minutes == 7 * 24 * 60) {
-            return "wk";
-        }
-        if (minutes % (24 * 60) == 0) {
-            return minutes / (24 * 60) + "d";
-        }
-        if (minutes % 60 == 0) {
-            return minutes / 60 + "h";
-        }
-        return minutes + "m";
-    }
-
-    /** A limit is only worth showing until its window resets; after that the reported percentage is stale. */
-    static boolean isCurrent(CodexUsageParser.RateLimit limit, long now) {
-        return limit != null && (limit.resetsAtEpochSeconds() <= 0 || limit.resetsAtEpochSeconds() * 1000 > now);
-    }
 }

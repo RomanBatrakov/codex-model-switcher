@@ -39,18 +39,6 @@ class CodexUsageParserTest {
     }
 
     @Test
-    void parsesRateLimits() {
-        CodexUsageParser.RateLimits limits = CodexUsageParser.parseRateLimits(TOKEN_COUNT);
-        assertNotNull(limits);
-        assertEquals(300, limits.primary().windowMinutes());
-        assertEquals(9.0, limits.primary().usedPercent());
-        assertEquals(10080, limits.secondary().windowMinutes());
-        assertEquals(36.0, limits.secondary().usedPercent());
-        assertEquals(1794501473L, limits.secondary().resetsAtEpochSeconds());
-        assertNull(CodexUsageParser.parseRateLimits(USAGE));
-    }
-
-    @Test
     void parsesSessionCwd() {
         String meta = "{\"timestamp\":\"2026-11-07T17:04:44Z\",\"type\":\"session_meta\","
                 + "\"payload\":{\"id\":\"x\",\"cwd\":\"/Users/me/IdeaProjects/core\"}}";
