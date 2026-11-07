@@ -126,9 +126,9 @@ public final class CodexAppServerClient implements Disposable {
     /**
      * Resolves the thread running in the currently selected terminal tab, or
      * null if the active tab isn't a chat this plugin opened (or there is no
-     * active tab).
+     * active tab). Reads Swing state, so call it on the UI thread.
      */
-    private String activeThreadId() {
+    String activeThreadId() {
         ToolWindow terminalToolWindow = ToolWindowManager.getInstance(project).getToolWindow("Terminal");
         if (terminalToolWindow == null) {
             return null;
@@ -142,14 +142,18 @@ public final class CodexAppServerClient implements Disposable {
     }
 
     /**
-     * Applies {@code preset}'s model and reasoning effort only to the chat
-     * running in the currently active terminal tab.
+     * Applies {@code preset}'s model and reasoning effort to one chat only,
+     * e.g. the one in the active terminal tab (see {@link #activeThreadId()}).
      *
+     * @param threadId the chat to update; must be a full UUID
      * @param preset the model/effort to apply; must not be null
      */
-    public CompletableFuture<Void> updateActiveThreadSettings(ModelPreset preset) {
+    public CompletableFuture<Void> updateThreadSettings(String threadId, ModelPreset preset) {
         if (preset == null) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("No model preset was specified."));
+        }
+        if (!CodexThread.isValidId(threadId)) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Invalid chat identifier."));
         }
         try {
             ModelPreset.requireModel(preset.model());
@@ -157,15 +161,10 @@ public final class CodexAppServerClient implements Disposable {
         } catch (IllegalArgumentException error) {
             return CompletableFuture.failedFuture(error);
         }
-        String threadId = activeThreadId();
-        if (threadId == null) {
-            return CompletableFuture.failedFuture(new IllegalStateException(
-                    "Could not determine the active chat. Click into a chat tab opened via this plugin, then try again."));
-        }
         synchronized (modelUpdateLock) {
             modelUpdateTail = modelUpdateTail
                     .handle((ignored, _) -> null)
-                    .thenCompose(ignored -> reconnect().thenCompose(ignored2 -> updateThreadSettings(threadId, preset)));
+                    .thenCompose(ignored -> reconnect().thenCompose(ignored2 -> sendThreadSettings(threadId, preset)));
             return modelUpdateTail;
         }
     }
@@ -254,7 +253,7 @@ public final class CodexAppServerClient implements Disposable {
         if (index == threadIds.size()) {
             return CompletableFuture.completedFuture(null);
         }
-        return updateThreadSettings(threadIds.get(index), preset).handle((ignored, error) -> {
+        return sendThreadSettings(threadIds.get(index), preset).handle((ignored, error) -> {
             if (error == null) {
                 return updateThreadSettings(threadIds, preset, index + 1);
             }
@@ -395,7 +394,7 @@ public final class CodexAppServerClient implements Disposable {
         return null;
     }
 
-    private CompletableFuture<Void> updateThreadSettings(String threadId, ModelPreset preset) {
+    private CompletableFuture<Void> sendThreadSettings(String threadId, ModelPreset preset) {
         JsonObject parameters = new JsonObject();
         parameters.addProperty("threadId", threadId);
         parameters.addProperty("model", preset.model());

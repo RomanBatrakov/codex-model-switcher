@@ -33,13 +33,27 @@ final class CodexWorkflow {
         });
     }
 
+    /** Called on the UI thread (tool window card, Tools menu, Ctrl+digit). */
     static void switchModel(Project project, ModelPreset preset) {
-        boolean activeChatOnly = CodexModelSwitcherSettings.getInstance().activeChatOnly();
+        CodexAppServerClient client = CodexAppServerClient.getInstance(project);
+        // Resolve "the active chat" right now, on the UI thread: it reads the
+        // Terminal tool window's Swing state, and it should be the tab that
+        // was active when the user clicked -- not whichever one is active by
+        // the time the server answers.
+        String activeThreadId = null;
+        if (CodexModelSwitcherSettings.getInstance().activeChatOnly()) {
+            activeThreadId = client.activeThreadId();
+            if (activeThreadId == null) {
+                CodexNotifications.error(project, "Model was not changed",
+                        "Could not determine the active chat. Click into a chat tab opened via this plugin, then try again.");
+                return;
+            }
+        }
+        String threadId = activeThreadId;
         ensureServerReady(project)
-                .thenCompose(ignored -> {
-                    CodexAppServerClient client = CodexAppServerClient.getInstance(project);
-                    return activeChatOnly ? client.updateActiveThreadSettings(preset) : client.updateAllThreadSettings(preset);
-                })
+                .thenCompose(ignored -> threadId != null
+                        ? client.updateThreadSettings(threadId, preset)
+                        : client.updateAllThreadSettings(preset))
                 .thenRun(() -> CodexModelSwitcherSettings.getInstance().setLastPresetId(preset.id()))
                 .whenComplete((ignored, error) -> {
                     if (error != null) {
