@@ -73,6 +73,10 @@ The status bar shows Codex token consumption across all agents:
 ⛽ 7.0k tok/min · 🤖 2 · 24h 8.4k · 7d 5.2k
 ```
 
+<p align="center">
+  <img src="screenshots/usage.png" alt="Codex usage details" width="360">
+</p>
+
 That is the rate over the last 5 minutes, the number of agents active in that window, and the average rate over
 the last 24 hours and 7 days. Click it for a breakdown of the current project vs. all agents, with 24-hour, 7-day
 and 30-day averages and totals. Hide it like any other widget: right-click the status bar and uncheck
