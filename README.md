@@ -7,7 +7,7 @@
 
 An IntelliJ IDEA tool window for [Codex CLI](https://github.com/openai/codex): switch the model and reasoning effort
 of every active chat in one click, jump straight to a saved chat, and launch your own Codex profiles — without
-leaving the IDE or typing shell commands.
+leaving the IDE or typing shell commands. A status bar widget shows how many tokens your Codex agents use.
 
 <p align="center">
   <img src="screenshots/tool-window.png" alt="Tool window" width="280">

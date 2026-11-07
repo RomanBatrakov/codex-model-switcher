@@ -11,7 +11,8 @@
   <description><![CDATA[
     <p>A tool window for <a href="https://github.com/openai/codex">Codex CLI</a>: switch the model and reasoning
     effort of every active chat in one click, jump straight to a saved chat, and launch your own Codex profiles
-    &mdash; without leaving the IDE or typing shell commands.</p>
+    &mdash; without leaving the IDE or typing shell commands. A status bar widget shows how many tokens your Codex
+    agents use.</p>
 
     <h3>Model presets</h3>
     <p>Four configurable model/reasoning slots, each with its own keyboard shortcut. Switching a preset updates
