@@ -3,12 +3,14 @@ package com.github.romanbatrakov.codexmodelswitcher;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.terminal.ui.TerminalWidget;
+import com.intellij.util.concurrency.AppExecutorUtil;
 
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -97,24 +99,42 @@ final class CodexWorkflow {
      * protocol connection is retried before a model update begins.
      */
     private static CompletableFuture<Void> ensureServerReady(Project project) {
-        return CodexAppServerClient.getInstance(project).connect()
+        // Start on a pooled thread: connecting can read the server's token
+        // and, after a plugin reload, look it up via lsof -- never on the UI thread.
+        return CompletableFuture.supplyAsync(() -> CodexAppServerClient.getInstance(project).connect(),
+                        AppExecutorUtil.getAppExecutorService())
+                .thenCompose(Function.identity())
                 .handle((ignored, error) -> error == null
                         ? CompletableFuture.<Void>completedFuture(null)
                         : startServerTerminal(project).thenCompose(ignoredAgain -> waitForServer(project, 16)))
                 .thenCompose(Function.identity());
     }
 
+    /**
+     * Port probes, lsof and token files run on a pooled thread; only the
+     * terminal tab itself is created on the UI thread.
+     */
     private static CompletableFuture<Void> startServerTerminal(Project project) {
-        CompletableFuture<Void> terminalCreated = new CompletableFuture<>();
-        ApplicationManager.getApplication().invokeLater(() -> {
-            try {
-                CodexServerStarter.getInstance(project).start();
-                terminalCreated.complete(null);
-            } catch (Throwable error) {
-                terminalCreated.completeExceptionally(error);
-            }
-        });
-        return terminalCreated;
+        CodexServerStarter starter = CodexServerStarter.getInstance(project);
+        return CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return starter.prepareStart();
+                    } catch (IOException error) {
+                        throw new CompletionException(error);
+                    }
+                }, AppExecutorUtil.getAppExecutorService())
+                .thenCompose(launch -> {
+                    CompletableFuture<Void> terminalCreated = new CompletableFuture<>();
+                    ApplicationManager.getApplication().invokeLater(() -> {
+                        try {
+                            starter.openServerTerminal(launch);
+                            terminalCreated.complete(null);
+                        } catch (Throwable error) {
+                            terminalCreated.completeExceptionally(error);
+                        }
+                    }, project.getDisposed());
+                    return terminalCreated;
+                });
     }
 
     private static CompletableFuture<Void> waitForServer(Project project, int attemptsLeft) {

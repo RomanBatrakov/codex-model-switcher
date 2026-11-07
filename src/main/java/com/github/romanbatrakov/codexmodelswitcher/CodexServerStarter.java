@@ -63,20 +63,30 @@ public final class CodexServerStarter implements Disposable {
     }
 
     /**
-     * Starts a new local app-server process in a dedicated terminal for this
-     * project. The configured address in Settings is only a preferred
-     * starting port: if it is already occupied by another project's server
-     * (or any other process), this searches forward for the next free port
-     * instead of colliding with it. If the configured port is occupied by
-     * this same project's own server from an earlier session (recognizable
-     * by its project-tagged token file), that server is adopted instead of
-     * spawning a duplicate.
-     *
-     * @return true once the server is started or an existing one was adopted
-     * @throws IOException if no free/adoptable port could be found nearby,
-     *         or the server process/terminal could not be started
+     * What {@link #prepareStart()} decided: where this project's server
+     * listens, and the shell command to start it -- or null when an already
+     * running server was adopted and no terminal is needed.
      */
-    public synchronized boolean start() throws IOException {
+    record Launch(URI endpoint, String command) {
+    }
+
+    /**
+     * The blocking half of starting this project's app server: port probes,
+     * {@code lsof}, process scans and token-file I/O. Call it on a background
+     * thread, then pass the result to {@link #openServerTerminal(Launch)} on
+     * the UI thread.
+     *
+     * <p>The configured address in Settings is only a preferred starting
+     * port: if it is already occupied by another project's server (or any
+     * other process), this searches forward for the next free port instead
+     * of colliding with it. If a port is occupied by this same project's own
+     * server from an earlier session (recognizable by its project-tagged
+     * token file), that server is adopted instead of spawning a duplicate.
+     *
+     * @throws IOException if no free/adoptable port could be found nearby,
+     *         or the token file could not be created
+     */
+    synchronized Launch prepareStart() throws IOException {
         URI baseEndpoint = CodexServerEndpoint.requireValid(CodexModelSwitcherSettings.getInstance().serverUrl());
         IOException lastConflict = null;
         for (int attempt = 0; attempt < MAX_PORT_SEARCH_ATTEMPTS; attempt++) {
@@ -86,11 +96,11 @@ public final class CodexServerStarter implements Disposable {
             }
             URI candidate = withPort(baseEndpoint, port);
             if (!isPortOccupied(candidate)) {
-                return spawnServer(candidate);
+                return prepareSpawn(candidate);
             }
             if (adoptIfOwnServer(candidate)) {
                 resolvedEndpoint = candidate;
-                return true;
+                return new Launch(candidate, null);
             }
             lastConflict = new IOException("Port " + port + " on " + candidate.getHost()
                     + " is already in use by another process. Stop it or change the app-server address in "
@@ -101,7 +111,7 @@ public final class CodexServerStarter implements Disposable {
                         + " for the Codex app server.");
     }
 
-    private boolean spawnServer(URI endpoint) throws IOException {
+    private Launch prepareSpawn(URI endpoint) throws IOException {
         Path codexExecutable = CodexUtils.codexExecutable();
         Path newAuthTokenFile = createAuthTokenFile(projectTag);
         String newAuthToken;
@@ -111,37 +121,59 @@ public final class CodexServerStarter implements Disposable {
             deleteQuietly(newAuthTokenFile);
             throw error;
         }
-        if (serverTerminal != null) {
-            try {
-                serverTerminal.dispose();
-            } catch (RuntimeException ignored) {
-                // The old terminal may already have been closed by the user.
-            }
-            serverTerminal = null;
-        }
         deleteAuthTokenFile();
         authTokenFile = newAuthTokenFile;
         authToken = newAuthToken;
+        return new Launch(endpoint, CodexUtils.shellQuote(codexExecutable.toString())
+                + " app-server --listen "
+                + CodexUtils.shellQuote(endpoint.toString())
+                + " --ws-auth capability-token --ws-token-file "
+                + CodexUtils.shellQuote(newAuthTokenFile.toString()));
+    }
+
+    /**
+     * The UI-thread half of starting the server: replaces the server terminal
+     * and runs the prepared command in it. Deliberately not synchronized as a
+     * whole -- the lock is only taken briefly around field updates, so a
+     * background {@link #prepareStart()} never ends up waiting on the UI
+     * thread while the UI thread waits on it.
+     */
+    void openServerTerminal(Launch launch) {
+        if (launch.command() == null) {
+            return;
+        }
+        TerminalWidget previous;
+        synchronized (this) {
+            previous = serverTerminal;
+            serverTerminal = null;
+        }
+        if (previous != null) {
+            try {
+                previous.dispose();
+            } catch (RuntimeException ignored) {
+                // The old terminal may already have been closed by the user.
+            }
+        }
+        TerminalWidget terminal = null;
         try {
             String directory = project.getBasePath() == null ? System.getProperty("user.dir") : project.getBasePath();
-            serverTerminal = CodexUtils.openTerminalSession(project, directory, "Codex Server");
-            serverTerminal.sendCommandToExecute(CodexUtils.shellQuote(codexExecutable.toString())
-                    + " app-server --listen "
-                    + CodexUtils.shellQuote(endpoint.toString())
-                    + " --ws-auth capability-token --ws-token-file "
-                    + CodexUtils.shellQuote(authTokenFile.toString()));
-            resolvedEndpoint = endpoint;
-            return true;
+            terminal = CodexUtils.openTerminalSession(project, directory, "Codex Server");
+            terminal.sendCommandToExecute(launch.command());
+            synchronized (this) {
+                serverTerminal = terminal;
+                resolvedEndpoint = launch.endpoint();
+            }
         } catch (RuntimeException error) {
-            if (serverTerminal != null) {
+            if (terminal != null) {
                 try {
-                    serverTerminal.dispose();
+                    terminal.dispose();
                 } catch (RuntimeException ignored) {
                     // The terminal may already have been closed by the IDE.
                 }
-                serverTerminal = null;
             }
-            deleteAuthTokenFile();
+            synchronized (this) {
+                deleteAuthTokenFile();
+            }
             throw error;
         }
     }
