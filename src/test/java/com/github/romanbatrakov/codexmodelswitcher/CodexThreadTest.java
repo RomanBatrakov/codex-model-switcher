@@ -32,5 +32,8 @@ class CodexThreadTest {
         assertTrue(thread.matchesSearch("LOGIN"));
         assertTrue(thread.matchesSearch(""));
         assertFalse(thread.matchesSearch("database"));
+        // A match must come from one field, never across the end of the name and the start of the preview.
+        assertFalse(thread.matchesSearch("issue user"));
+        assertTrue(new CodexThread("123e4567-e89b-12d3-a456-426614174000", null, null, 0L).matchesSearch("  "));
     }
 }

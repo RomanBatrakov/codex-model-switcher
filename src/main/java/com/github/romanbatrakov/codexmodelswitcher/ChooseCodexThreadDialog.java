@@ -32,6 +32,9 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
     private final Project project;
     private final Supplier<CompletableFuture<List<CodexThread>>> refreshSupplier;
     private List<CodexThread> allThreads;
+    // Lower-cased name+preview per thread, aligned with allThreads: computed
+    // once per list, not again for every thread on every keystroke.
+    private List<String> searchTexts;
     private final DefaultListModel<CodexThread> matchingThreads = new DefaultListModel<>();
     private final JBList<CodexThread> threadList = new JBList<>(matchingThreads);
     private final JBTextField searchField = new JBTextField();
@@ -46,7 +49,7 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
     ) {
         super(project);
         this.project = project;
-        this.allThreads = allThreads;
+        setThreads(allThreads);
         this.preferredThreadId = preferredThreadId;
         this.refreshSupplier = refreshSupplier;
         setTitle("Open Codex Chat");
@@ -88,10 +91,16 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
     private void refreshMatches() {
         CodexThread previousSelection = threadList.getSelectedValue();
         String selectedThreadId = previousSelection == null ? preferredThreadId : previousSelection.id();
+        String query = CodexThread.normalizeQuery(searchField.getText());
+        List<CodexThread> matches = new ArrayList<>();
+        for (int index = 0; index < allThreads.size(); index++) {
+            if (query.isEmpty() || searchTexts.get(index).contains(query)) {
+                matches.add(allThreads.get(index));
+            }
+        }
+        // One bulk update instead of one list event per matching chat.
         matchingThreads.clear();
-        allThreads.stream()
-                .filter(thread -> thread.matchesSearch(searchField.getText()))
-                .forEach(matchingThreads::addElement);
+        matchingThreads.addAll(matches);
         if (selectedThreadId != null && selectById(selectedThreadId)) {
             preferredThreadId = selectedThreadId;
         } else if (!matchingThreads.isEmpty()) {
@@ -109,6 +118,11 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
         return false;
     }
 
+    private void setThreads(List<CodexThread> threads) {
+        allThreads = new ArrayList<>(threads);
+        searchTexts = allThreads.stream().map(CodexThread::searchText).toList();
+    }
+
     private void refreshFromServer() {
         refreshButton.setEnabled(false);
         refreshButton.setText("Refreshing…");
@@ -119,7 +133,7 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
                 CodexNotifications.error(project, "Failed to refresh the chat list", CodexUtils.userMessage(error));
                 return;
             }
-            allThreads = new ArrayList<>(threads);
+            setThreads(threads);
             refreshMatches();
         }));
     }
