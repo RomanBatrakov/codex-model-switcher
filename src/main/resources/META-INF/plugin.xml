@@ -49,6 +49,8 @@
       <li>New status bar widget with Codex token usage: tokens per minute per agent right now, the
         number of active agents, and the 24-hour and 7-day averages. Click it for this project vs. all
         agents, including 30-day figures. Read only from local Codex session files</li>
+      <li>Redesigned Model Switcher panel: one line per model, New chat and Choose chat side by side,
+        a calmer highlight for the selected model, Settings at the bottom, and keyboard navigation</li>
     </ul>
 
     <p><b>1.9.0</b></p>
