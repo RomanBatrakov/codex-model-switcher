@@ -43,6 +43,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -64,7 +66,7 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
     /** Installs a single {@link ToolWindowPanel} as this tool window's content. */
     @Override
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
-        ToolWindowPanel panel = new ToolWindowPanel(project);
+        ToolWindowPanel panel = new ToolWindowPanel(project, toolWindow);
         Content content = ContentFactory.getInstance().createContent(panel, "", false);
         // Activating the tool window focuses the panel itself, never one of its rows.
         content.setPreferredFocusableComponent(panel);
@@ -106,16 +108,22 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
         private static final int ACTION_COUNT = 2;
 
         private final Project project;
+        private final ToolWindow toolWindow;
         private final Timer statusTimer;
         private final Map<ModelPreset.PresetId, CardButton> modelCards = new EnumMap<>(ModelPreset.PresetId.class);
         /** Every row in visual order, for keyboard navigation. */
         private final List<CardButton> rows = new ArrayList<>();
+        /** How soon after a click on a row a focus gain counts as caused by that click. */
+        private static final long CLICK_FOCUS_NANOS = 1_000_000_000L;
+
         private ModelPreset.PresetId lastSelectedPreset;
         private int cursor = -1;
+        private long lastRowPressNanos = System.nanoTime() - 2 * CLICK_FOCUS_NANOS;
 
-        private ToolWindowPanel(Project project) {
+        private ToolWindowPanel(Project project, ToolWindow toolWindow) {
             super(new BorderLayout());
             this.project = project;
+            this.toolWindow = toolWindow;
             setBorder(JBUI.Borders.empty(8));
             setFocusable(true);
             installKeyboardNavigation();
@@ -178,6 +186,12 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
 
         private CardButton track(CardButton card) {
             rows.add(card);
+            card.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent event) {
+                    lastRowPressNanos = System.nanoTime();
+                }
+            });
             return card;
         }
 
@@ -256,10 +270,22 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             addFocusListener(new FocusAdapter() {
                 @Override
                 public void focusGained(FocusEvent event) {
-                    // Tab into the panel picks the first row; activation by
-                    // click or tool window shortcut doesn't.
-                    if (cursor < 0 && event.getCause().name().startsWith("TRAVERSAL")) {
-                        setCursor(0);
+                    if (event.getCause().name().startsWith("TRAVERSAL")) {
+                        // Tab into the panel picks the first row.
+                        if (cursor < 0) {
+                            setCursor(0);
+                        }
+                        return;
+                    }
+                    // Clicking a row made the IDE activate this tool window and
+                    // focus it: hand focus straight back (to the terminal, say),
+                    // so typing there continues. Opening the tool window from
+                    // the keyboard keeps focus here, for the arrow keys.
+                    // Not for an auto-hide tool window: losing focus would hide it mid-click.
+                    Component opposite = event.getOppositeComponent();
+                    if (opposite != null && !toolWindow.isAutoHide()
+                            && System.nanoTime() - lastRowPressNanos < CLICK_FOCUS_NANOS) {
+                        opposite.requestFocusInWindow();
                     }
                 }
 
