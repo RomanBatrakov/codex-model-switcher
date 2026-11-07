@@ -111,16 +111,12 @@ final class CodexUsageStats {
         return result;
     }
 
-    /** Whether a session's working directory is the project directory or somewhere inside it. */
-    static boolean belongsTo(String cwd, String projectPath) {
-        return projectFilter(projectPath).test(cwd);
-    }
-
     /**
-     * A {@link #belongsTo} check for one project, meant to be applied to many
-     * samples: the project path is normalized once, and the answer is cached
-     * per distinct working directory -- there are only a handful of those,
-     * while there can be tens of thousands of samples.
+     * Whether a session's working directory is the project directory or
+     * somewhere inside it, as a check meant to be applied to many samples:
+     * the project path is normalized once, and the answer is cached per
+     * distinct working directory -- there are only a handful of those, while
+     * there can be tens of thousands of samples.
      */
     static Predicate<String> projectFilter(String projectPath) {
         Path project = normalize(projectPath);

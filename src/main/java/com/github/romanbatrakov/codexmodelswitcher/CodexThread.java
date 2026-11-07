@@ -29,9 +29,12 @@ record CodexThread(String id, String name, String preview, long updatedAt) {
         return headline + "  —  " + timestamp;
     }
 
-    boolean matchesSearch(String query) {
-        String normalizedQuery = normalizeQuery(query);
-        return normalizedQuery.isEmpty() || searchText().contains(normalizedQuery);
+    /**
+     * Whether a chat's {@link #searchText()} matches a query already passed
+     * through {@link #normalizeQuery(String)}; an empty query matches all.
+     */
+    static boolean matches(String searchText, String normalizedQuery) {
+        return normalizedQuery.isEmpty() || searchText.contains(normalizedQuery);
     }
 
     /** The search query in the form {@link #searchText()} is matched against. */

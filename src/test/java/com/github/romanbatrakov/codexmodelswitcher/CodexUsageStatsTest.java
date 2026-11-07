@@ -3,6 +3,7 @@ package com.github.romanbatrakov.codexmodelswitcher;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -65,19 +66,18 @@ class CodexUsageStatsTest {
                 sample(NOW - 1_000, "a", 5_000, 0, "/work/core"),
                 sample(NOW - 1_000, "b", 5_000, 0, "/work/other"));
         CodexUsageStats.Usage usage =
-                CodexUsageStats.current(samples, NOW, cwd -> CodexUsageStats.belongsTo(cwd, "/work/core"));
+                CodexUsageStats.current(samples, NOW, CodexUsageStats.projectFilter("/work/core"));
         assertEquals(1, usage.agents());
         assertEquals(5_000, usage.totalTokens());
 
-        assertTrue(CodexUsageStats.belongsTo("/work/core/module", "/work/core"));
-        assertFalse(CodexUsageStats.belongsTo("/work/core-old", "/work/core"));
-        assertFalse(CodexUsageStats.belongsTo(null, "/work/core"));
-        assertFalse(CodexUsageStats.belongsTo("/work/core", null));
-
-        java.util.function.Predicate<String> filter = CodexUsageStats.projectFilter("/work/core/");
+        Predicate<String> filter = CodexUsageStats.projectFilter("/work/core/");
+        assertTrue(filter.test("/work/core"));
         assertTrue(filter.test("/work/core/module"));
-        assertTrue(filter.test("/work/core/module"));
+        assertTrue(filter.test("/work/core/module"), "a cached answer stays the same");
+        assertFalse(filter.test("/work/core-old"));
         assertFalse(filter.test("/work/other"));
+        assertFalse(filter.test(null));
+        assertFalse(CodexUsageStats.projectFilter(null).test("/work/core"));
     }
 
     private static String cachedShare(long total, long nonCached) {

@@ -94,7 +94,7 @@ final class ChooseCodexThreadDialog extends DialogWrapper {
         String query = CodexThread.normalizeQuery(searchField.getText());
         List<CodexThread> matches = new ArrayList<>();
         for (int index = 0; index < allThreads.size(); index++) {
-            if (query.isEmpty() || searchTexts.get(index).contains(query)) {
+            if (CodexThread.matches(searchTexts.get(index), query)) {
                 matches.add(allThreads.get(index));
             }
         }
