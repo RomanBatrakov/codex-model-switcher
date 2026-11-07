@@ -51,6 +51,8 @@
         agents, including 30-day figures. Read only from local Codex session files</li>
       <li>Redesigned Model Switcher panel: one line per model, New chat and Choose chat side by side,
         a calmer highlight for the selected model, Settings at the bottom, and keyboard navigation</li>
+      <li>Reorganized Settings: Model presets, Launch profiles and Connection sections, a narrower window,
+        and Reset presets next to the presets; it no longer resets the app-server address</li>
     </ul>
 
     <p><b>1.9.0</b></p>
