@@ -1,5 +1,5 @@
 <idea-plugin>
-  <version>1.9.0</version>
+  <version>2.0.0</version>
   <id>com.github.romanbatrakov.codexmodelswitcher</id>
   <name>Model Switcher for Codex CLI</name>
   <vendor email="batrakov.r.v@gmail.com" url="https://github.com/RomanBatrakov">Roman</vendor>
@@ -37,6 +37,13 @@
   ]]></description>
 
   <change-notes><![CDATA[
+    <p><b>2.0.0</b></p>
+    <ul>
+      <li>New status bar widget with live Codex token usage: tokens per minute per agent, the number
+        of active agents, and the 5-hour and weekly limits. Click it for this project's usage vs. all
+        agents and 24-hour, 7-day and 30-day averages. Read only from local Codex session files</li>
+    </ul>
+
     <p><b>1.9.0</b></p>
     <ul>
       <li>Added gpt-6.1-terra as a model suggestion in Settings</li>
