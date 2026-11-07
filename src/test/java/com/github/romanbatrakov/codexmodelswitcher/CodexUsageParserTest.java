@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class CodexUsageParserTest {
     private static final String USAGE = """
             {"timestamp":"2026-11-07T17:17:57.155Z","ordinal":18,"type":"token_usage_record","payload":{\
-            "thread_id":"01a1b6f8-3eb5-7c71-9bec-20b14eb1215b","usage":{"input_tokens":18090,\
+            "thread_id":"123e4567-e89b-12d3-a456-426614174000","usage":{"input_tokens":18090,\
             "cached_input_tokens":13184,"output_tokens":189,"total_tokens":18279}}}""";
 
     private static final String TOKEN_COUNT = """
@@ -24,7 +24,7 @@ class CodexUsageParserTest {
         CodexUsageParser.UsageEvent event = CodexUsageParser.parseUsage(USAGE);
         assertNotNull(event);
         assertEquals(Instant.parse("2026-11-07T17:17:57.155Z").toEpochMilli(), event.timestampMillis());
-        assertEquals("01a1b6f8-3eb5-7c71-9bec-20b14eb1215b", event.threadId());
+        assertEquals("123e4567-e89b-12d3-a456-426614174000", event.threadId());
         assertEquals(18279, event.totalTokens());
         assertEquals(13184, event.cachedInputTokens());
     }
