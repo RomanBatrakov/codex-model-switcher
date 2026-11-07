@@ -78,9 +78,10 @@ The status bar shows Codex token consumption across all agents:
 </p>
 
 That is the rate over the last 5 minutes, the number of agents active in that window, and the average rate over
-the last 24 hours and 7 days. Click it for a breakdown of the current project vs. all agents, with 24-hour, 7-day
-and 30-day averages and totals. Hide it like any other widget: right-click the status bar and uncheck
-**Codex Usage**.
+the last 24 hours and 7 days. Click it for details, with one tab for the current project and one for all agents:
+whether any agent is active right now, the tokens used over the last 24 hours, 7 and 30 days (uncached, total, and
+the cached share), and the average speed for each period. Hide it like any other widget: right-click the status bar
+and uncheck **Codex Usage**.
 
 How the numbers are counted:
 
@@ -88,8 +89,8 @@ How the numbers are counted:
   agent was actually working. Two busy agents show the same rate as one, and time with no agent running doesn't
   pull the averages down.
 - **Without cached input.** Codex re-sends the whole conversation context on every step, and that cached input is
-  typically ~98% of the raw token count. The main numbers leave it out; the details also show the full count
-  ("with cache").
+  typically ~98% of the raw token count. The speeds and the "Uncached" column leave it out; "Total" includes it,
+  and "Cached" is its share of the total.
 - **Local files only.** Data comes from Codex's own session transcripts in `~/.codex/sessions` (or
   `$CODEX_HOME/sessions`), refreshed every 30 seconds. There is no network access, and only new lines are read after
   the first scan. The transcript format is internal to Codex and may change in future Codex releases.
