@@ -1,21 +1,26 @@
 package com.github.romanbatrakov.codexmodelswitcher;
 
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.ui.ToolbarDecorator;
+import com.intellij.ui.components.ActionLink;
+import com.intellij.ui.components.JBCheckBox;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBPanel;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.table.JBTable;
+import com.intellij.util.ui.JBFont;
+import com.intellij.util.system.OS;
+import com.intellij.util.ui.JBUI;
 import org.jspecify.annotations.NonNull;
 
-import javax.swing.BoxLayout;
 import javax.swing.DefaultComboBoxModel;
-import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
+import javax.swing.JSeparator;
 import javax.swing.JTextField;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -24,8 +29,6 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.GridLayout;
-import java.awt.Insets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -67,50 +70,62 @@ final class CodexSettingsDialog extends DialogWrapper {
             profilesTableModel.addRow(new Object[]{profile.name, profile.arguments});
         }
         profilesTable = new JBTable(profilesTableModel);
-        activeChatOnlyCheckBox = new JCheckBox(
-                "Apply a preset only to the active chat tab, instead of every open chat",
-                settings.activeChatOnly());
+        activeChatOnlyCheckBox = new JBCheckBox("Apply presets only to the active chat", settings.activeChatOnly());
+        activeChatOnlyCheckBox.setToolTipText(
+                "Apply a preset only to the active chat tab, instead of every open chat");
         setTitle("Model Switcher for Codex CLI Settings");
         init();
     }
 
+    /**
+     * Three sections: MODEL PRESETS, LAUNCH PROFILES and CONNECTION. The
+     * profiles table sits in the middle, so it is the part that grows when the
+     * dialog is resized.
+     */
     @Override
     protected @NonNull JComponent createCenterPanel() {
-        JPanel panel = new JBPanel<>(new BorderLayout(0, 12));
-        panel.setPreferredSize(new Dimension(720, 480));
+        JPanel panel = new JBPanel<>(new BorderLayout());
+        panel.add(presetsSection(), BorderLayout.NORTH);
+        panel.add(profilesSection(), BorderLayout.CENTER);
+        panel.add(connectionSection(), BorderLayout.SOUTH);
+        return panel;
+    }
 
-        JPanel connectionPanel = new JBPanel<>(new GridLayout(2, 1, 0, 4));
-        connectionPanel.add(new JBLabel("Preferred app-server address (each project uses its own port,"
-                + " starting from this one, if it's taken):"));
-        connectionPanel.add(serverUrlField);
-        panel.add(connectionPanel, BorderLayout.NORTH);
-
-        JPanel presetsPanel = new JBPanel<>(new GridBagLayout());
-        GridBagConstraints constraints = new GridBagConstraints();
-        constraints.insets = new Insets(3, 4, 3, 4);
-        constraints.fill = GridBagConstraints.HORIZONTAL;
-        constraints.weightx = 0;
-        addHeader(presetsPanel, constraints, 0, "Preset");
-        addHeader(presetsPanel, constraints, 1, "Model");
-        addHeader(presetsPanel, constraints, 2, "Reasoning");
-        addHeader(presetsPanel, constraints, 3, "Ctrl +");
+    /** Preset | Model | Reasoning | Shortcut, then the active-chat option and Reset presets. */
+    private JComponent presetsSection() {
+        JPanel grid = new JBPanel<>(new GridBagLayout());
+        addCell(grid, caption("Preset"), 0, 0);
+        addCell(grid, caption("Model"), 1, 0);
+        addCell(grid, caption("Reasoning"), 2, 0);
+        addCell(grid, caption("Shortcut"), 3, 0);
+        // The shortcut is Ctrl + digit on every platform; only the label differs.
+        String modifier = OS.CURRENT == OS.macOS ? "⌃" : "Ctrl+";
         for (PresetFields fields : presetFields) {
             int row = fields.presetId.ordinal() + 1;
-            addCell(presetsPanel, constraints, 0, row, new JBLabel(fields.presetId.label()));
-            addCell(presetsPanel, constraints, 1, row, fields.modelField);
-            addCell(presetsPanel, constraints, 2, row, fields.effortField);
-            addCell(presetsPanel, constraints, 3, row, fields.shortcutField);
+            addCell(grid, new JBLabel(fields.presetId.label()), 0, row);
+            addCell(grid, fields.modelField, 1, row);
+            addCell(grid, fields.effortField, 2, row);
+            JPanel shortcut = new JBPanel<>(new BorderLayout(JBUI.scale(4), 0));
+            shortcut.add(new JBLabel(modifier), BorderLayout.WEST);
+            shortcut.add(fields.shortcutField, BorderLayout.CENTER);
+            addCell(grid, shortcut, 3, row);
         }
-        GridBagConstraints checkBoxConstraints = new GridBagConstraints();
-        checkBoxConstraints.gridx = 0;
-        checkBoxConstraints.gridy = presetFields.length + 1;
-        checkBoxConstraints.gridwidth = 4;
-        checkBoxConstraints.anchor = GridBagConstraints.WEST;
-        checkBoxConstraints.insets = new Insets(8, 4, 3, 4);
-        presetsPanel.add(activeChatOnlyCheckBox, checkBoxConstraints);
+        int row = presetFields.length + 1;
+        grid.add(activeChatOnlyCheckBox, wideCell(row++, 8));
+        ActionLink resetLink = new ActionLink("Reset presets");
+        resetLink.addActionListener(ignored -> resetFields());
+        resetLink.setIcon(AllIcons.Actions.Rollback);
+        grid.add(resetLink, wideCell(row, 6));
+        return section("MODEL PRESETS", true, grid);
+    }
 
-        JPanel profilesSection = new JBPanel<>(new BorderLayout(0, 4));
-        profilesSection.add(new JBLabel("Launch profiles:"), BorderLayout.NORTH);
+    private JComponent profilesSection() {
+        // Tall enough for at least four rows, at most six; more rows scroll.
+        int visibleRows = Math.clamp(profilesTableModel.getRowCount(), 4, 6);
+        profilesTable.setPreferredScrollableViewportSize(
+                new Dimension(JBUI.scale(540), profilesTable.getRowHeight() * visibleRows));
+        profilesTable.getColumnModel().getColumn(0).setPreferredWidth(JBUI.scale(170));
+        profilesTable.getColumnModel().getColumn(1).setPreferredWidth(JBUI.scale(370));
         JPanel profilesPanel = ToolbarDecorator.createDecorator(profilesTable)
                 .setAddAction(_ -> profilesTableModel.addRow(new Object[]{"", ""}))
                 .setRemoveAction(_ -> {
@@ -124,24 +139,42 @@ final class CodexSettingsDialog extends DialogWrapper {
                 })
                 .disableUpDownActions()
                 .createPanel();
-        profilesPanel.setPreferredSize(new Dimension(0, 140));
-        profilesSection.add(profilesPanel, BorderLayout.CENTER);
+        return section("LAUNCH PROFILES", false, profilesPanel);
+    }
 
-        JPanel centerPanel = new JBPanel<>();
-        centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
-        presetsPanel.setAlignmentX(JPanel.LEFT_ALIGNMENT);
-        profilesSection.setAlignmentX(JPanel.LEFT_ALIGNMENT);
-        centerPanel.add(presetsPanel);
-        centerPanel.add(javax.swing.Box.createVerticalStrut(12));
-        centerPanel.add(profilesSection);
-        panel.add(centerPanel, BorderLayout.CENTER);
+    private JComponent connectionSection() {
+        String hint = "Preferred address of the local Codex app server. Each project runs its own server: "
+                + "on this port, or on the next free one if this port is taken.";
+        JBLabel label = new JBLabel("App-server URL");
+        label.setToolTipText(hint);
+        serverUrlField.setToolTipText(hint);
+        JPanel content = new JBPanel<>(new BorderLayout(0, JBUI.scale(4)));
+        content.add(label, BorderLayout.NORTH);
+        content.add(serverUrlField, BorderLayout.CENTER);
+        return section("CONNECTION", false, content);
+    }
 
-        JPanel footer = new JBPanel<>(new BorderLayout());
-        JButton resetButton = new JButton("Reset presets");
-        resetButton.addActionListener(ignored -> resetFields());
-        footer.add(resetButton, BorderLayout.EAST);
-        panel.add(footer, BorderLayout.SOUTH);
-        return panel;
+    /** A muted small title over a thin line, the same style as the Codex Usage popup. */
+    private static JComponent section(String title, boolean first, JComponent content) {
+        JBLabel label = new JBLabel(title);
+        label.setFont(JBFont.small().asBold());
+        label.setForeground(JBUI.CurrentTheme.ContextHelp.FOREGROUND);
+        JPanel header = new JBPanel<>(new BorderLayout(0, JBUI.scale(4)));
+        header.setBorder(JBUI.Borders.empty(first ? 0 : 16, 0, 8, 0));
+        header.add(label, BorderLayout.NORTH);
+        header.add(new JSeparator(), BorderLayout.CENTER);
+
+        JPanel section = new JBPanel<>(new BorderLayout());
+        section.add(header, BorderLayout.NORTH);
+        section.add(content, BorderLayout.CENTER);
+        return section;
+    }
+
+    private static JBLabel caption(String text) {
+        JBLabel label = new JBLabel(text);
+        label.setFont(JBFont.small());
+        label.setForeground(JBUI.CurrentTheme.ContextHelp.FOREGROUND);
+        return label;
     }
 
     @Override
@@ -187,15 +220,31 @@ final class CodexSettingsDialog extends DialogWrapper {
         return profiles;
     }
 
-    private void addHeader(JPanel panel, GridBagConstraints constraints, int column, String text) {
-        addCell(panel, constraints, column, 0, new JBLabel(text));
-    }
-
-    private void addCell(JPanel panel, GridBagConstraints constraints, int column, int row, JComponent component) {
+    /**
+     * One cell of the presets grid. Only the Model column takes extra width;
+     * Reasoning and Shortcut stay as narrow as their widest value, and every
+     * cell in a column fills it, so the fields line up.
+     */
+    private static void addCell(JPanel grid, JComponent component, int column, int row) {
+        GridBagConstraints constraints = new GridBagConstraints();
         constraints.gridx = column;
         constraints.gridy = row;
-        constraints.weightx = column == 0 ? 0 : 1;
-        panel.add(component, constraints);
+        constraints.weightx = column == 1 ? 1 : 0;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        constraints.anchor = GridBagConstraints.WEST;
+        constraints.insets = JBUI.insets(row == 0 ? 0 : 2, 0, 2, column == 3 ? 0 : 10);
+        grid.add(component, constraints);
+    }
+
+    /** A grid row spanning all four columns, left-aligned. */
+    private static GridBagConstraints wideCell(int row, int top) {
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = 0;
+        constraints.gridy = row;
+        constraints.gridwidth = 4;
+        constraints.anchor = GridBagConstraints.WEST;
+        constraints.insets = JBUI.insets(top, 0, 0, 0);
+        return constraints;
     }
 
     private String validateFields() {
@@ -284,7 +333,7 @@ final class CodexSettingsDialog extends DialogWrapper {
             modelField.setSelectedItem(settings.model(presetId));
             effortField = new JComboBox<>(ModelPreset.effortOptionsFor(settings.model(presetId)).toArray(new String[0]));
             effortField.setSelectedItem(settings.effort(presetId));
-            shortcutField = new JBTextField(settings.shortcut(presetId));
+            shortcutField = new JBTextField(settings.shortcut(presetId), 2);
 
             // Different models support different reasoning levels (e.g. "ultra"
             // is Astra/Sol/Terra-only) -- keep the Reasoning dropdown limited to
