@@ -32,17 +32,18 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
-import java.awt.KeyboardFocusManager;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +66,8 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
         ToolWindowPanel panel = new ToolWindowPanel(project);
         Content content = ContentFactory.getInstance().createContent(panel, "", false);
+        // Activating the tool window focuses the panel itself, never one of its rows.
+        content.setPreferredFocusableComponent(panel);
         toolWindow.getContentManager().addContent(content);
         Disposer.register(content, panel);
     }
@@ -79,12 +82,6 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
         sections.add(label);
     }
 
-    private static void addCard(JPanel sections, CardButton card) {
-        card.setAlignmentX(Component.LEFT_ALIGNMENT);
-        sections.add(card);
-        sections.add(Box.createVerticalStrut(JBUI.scale(2)));
-    }
-
     private static Color mix(Color first, Color second, float secondWeight) {
         float firstWeight = 1f - secondWeight;
         return new Color(Math.round(first.getRed() * firstWeight + second.getRed() * secondWeight),
@@ -92,26 +89,56 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             Math.round(first.getBlue() * firstWeight + second.getBlue() * secondWeight));
     }
 
-    /** The actual tool window content: sections of {@link CardButton}s, rebuilt whenever settings change. */
+    /**
+     * The actual tool window content: sections of {@link CardButton}s, rebuilt
+     * whenever settings change and whenever the theme or IDE zoom changes
+     * ({@link #updateUI()}), so every size and font is always current.
+     *
+     * <p>Keyboard navigation lives here rather than on the rows. The rows can't
+     * take focus, so clicking one never moves focus to another; when the panel
+     * itself is focused, ↑/↓ (and ←/→ between the two chat buttons) move a
+     * cursor that stops at the ends, and Enter or Space activates it. Focus
+     * from activating the tool window shows no cursor, so a stray Enter does
+     * nothing until an arrow key or Tab picks a row.
+     */
     private static final class ToolWindowPanel extends JBPanel<ToolWindowPanel> implements Disposable {
+        /** New chat and Choose chat come first in {@link #rows} and share one line. */
+        private static final int ACTION_COUNT = 2;
+
         private final Project project;
         private final Timer statusTimer;
         private final Map<ModelPreset.PresetId, CardButton> modelCards = new EnumMap<>(ModelPreset.PresetId.class);
+        /** Every row in visual order, for keyboard navigation. */
+        private final List<CardButton> rows = new ArrayList<>();
         private ModelPreset.PresetId lastSelectedPreset;
+        private int cursor = -1;
 
         private ToolWindowPanel(Project project) {
             super(new BorderLayout());
             this.project = project;
             setBorder(JBUI.Borders.empty(8));
+            setFocusable(true);
+            installKeyboardNavigation();
             statusTimer = new Timer(1000, ignored -> refreshState());
             statusTimer.setInitialDelay(0);
             rebuild();
             statusTimer.start();
         }
 
+        @Override
+        public void updateUI() {
+            super.updateUI();
+            // Also called by the superclass constructor, before any field is set.
+            if (project != null) {
+                rebuild();
+            }
+        }
+
         private void rebuild() {
             removeAll();
             modelCards.clear();
+            rows.clear();
+            cursor = -1;
             lastSelectedPreset = null;
 
             JPanel sections = new JPanel();
@@ -137,6 +164,7 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
 
             JBScrollPane scrollPane = new JBScrollPane(sections);
             scrollPane.setBorder(null);
+            scrollPane.setFocusable(false);
             scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
             scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
             scrollPane.setOpaque(false);
@@ -148,9 +176,20 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             repaint();
         }
 
+        private CardButton track(CardButton card) {
+            rows.add(card);
+            return card;
+        }
+
+        private void addCard(JPanel sections, CardButton card) {
+            card.setAlignmentX(Component.LEFT_ALIGNMENT);
+            sections.add(track(card));
+            sections.add(Box.createVerticalStrut(JBUI.scale(2)));
+        }
+
         /** New chat and Choose chat side by side, sharing the width equally. */
         private JComponent actionsRow() {
-            JPanel row = new JPanel(new GridLayout(1, 2, JBUI.scale(6), 0)) {
+            JPanel row = new JPanel(new GridLayout(1, ACTION_COUNT, JBUI.scale(6), 0)) {
                 @Override
                 public Dimension getMaximumSize() {
                     return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
@@ -158,10 +197,11 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             };
             row.setOpaque(false);
             row.setAlignmentX(Component.LEFT_ALIGNMENT);
-            row.add(new CardButton(CardButton.Kind.ACTION, "New chat", "Start a new chat with the current preset",
-                "+", CHAT_ACCENT, () -> CodexWorkflow.startNewChat(project), null));
-            row.add(new CardButton(CardButton.Kind.ACTION, "Choose chat", "Pick a saved chat and resume it",
-                "□", PICKER_ACCENT, () -> CodexWorkflow.chooseAndOpenChat(project), null));
+            row.add(track(new CardButton(CardButton.Kind.ACTION, "New chat",
+                "Start a new chat with the current preset", "+", CHAT_ACCENT,
+                () -> CodexWorkflow.startNewChat(project), null)));
+            row.add(track(new CardButton(CardButton.Kind.ACTION, "Choose chat", "Pick a saved chat and resume it",
+                "□", PICKER_ACCENT, () -> CodexWorkflow.chooseAndOpenChat(project), null)));
             return row;
         }
 
@@ -171,8 +211,8 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             area.setOpaque(false);
             area.setBorder(JBUI.Borders.emptyTop(8));
             area.add(new JSeparator(), BorderLayout.NORTH);
-            area.add(new CardButton(CardButton.Kind.ROW, "Settings", "Settings — presets and shortcuts", "⚙",
-                PICKER_ACCENT, this::openSettings, null), BorderLayout.CENTER);
+            area.add(track(new CardButton(CardButton.Kind.ROW, "Settings", "Settings — presets and shortcuts", "⚙",
+                PICKER_ACCENT, this::openSettings, null)), BorderLayout.CENTER);
             return area;
         }
 
@@ -192,6 +232,9 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             }
         }
 
+        // Cards are never disabled: a model action performs its own connection
+        // check and can start the local server when it is offline, so a card
+        // stays usable after an IDE or plugin restart.
         private void refreshState() {
             ModelPreset.PresetId currentPreset = CodexWorkflow.lastPresetId();
             if (currentPreset == lastSelectedPreset) {
@@ -199,12 +242,80 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             }
             lastSelectedPreset = currentPreset;
             for (Map.Entry<ModelPreset.PresetId, CardButton> entry : modelCards.entrySet()) {
-                // A model action performs its own connection/readiness check and
-                // can start the local server when it is offline. Keeping the
-                // card enabled makes the action recoverable after an IDE/plugin
-                // restart instead of turning a transient status into a dead UI.
-                entry.getValue().setEnabled(true);
                 entry.getValue().setHighlighted(entry.getKey() == currentPreset);
+            }
+        }
+
+        private void installKeyboardNavigation() {
+            bind(KeyEvent.VK_UP, "codexUp", () -> moveVertically(-1));
+            bind(KeyEvent.VK_DOWN, "codexDown", () -> moveVertically(1));
+            bind(KeyEvent.VK_LEFT, "codexLeft", () -> moveSideways(-1));
+            bind(KeyEvent.VK_RIGHT, "codexRight", () -> moveSideways(1));
+            bind(KeyEvent.VK_ENTER, "codexActivate", this::activateCursor);
+            bind(KeyEvent.VK_SPACE, "codexActivate", this::activateCursor);
+            addFocusListener(new FocusAdapter() {
+                @Override
+                public void focusGained(FocusEvent event) {
+                    // Tab into the panel picks the first row; activation by
+                    // click or tool window shortcut doesn't.
+                    if (cursor < 0 && event.getCause().name().startsWith("TRAVERSAL")) {
+                        setCursor(0);
+                    }
+                }
+
+                @Override
+                public void focusLost(FocusEvent event) {
+                    setCursor(-1);
+                }
+            });
+        }
+
+        private void bind(int keyCode, String name, Runnable runnable) {
+            getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(keyCode, 0), name);
+            getActionMap().put(name, new AbstractAction() {
+                @Override
+                public void actionPerformed(ActionEvent event) {
+                    runnable.run();
+                }
+            });
+        }
+
+        /** Down from either chat button goes to the first model, up from the first model to New chat. */
+        private void moveVertically(int direction) {
+            int next;
+            if (cursor < 0) {
+                next = 0;
+            } else if (cursor < ACTION_COUNT) {
+                next = direction > 0 ? ACTION_COUNT : cursor;
+            } else if (direction < 0 && cursor == ACTION_COUNT) {
+                next = 0;
+            } else {
+                next = cursor + direction;
+            }
+            setCursor(Math.clamp(next, 0, rows.size() - 1));
+        }
+
+        private void moveSideways(int direction) {
+            if (cursor >= 0 && cursor < ACTION_COUNT) {
+                setCursor(Math.clamp(cursor + direction, 0, ACTION_COUNT - 1));
+            }
+        }
+
+        private void activateCursor() {
+            if (cursor >= 0) {
+                rows.get(cursor).doClick();
+            }
+        }
+
+        private void setCursor(int index) {
+            if (cursor >= 0 && cursor < rows.size()) {
+                rows.get(cursor).setKeyboardCursor(false);
+            }
+            cursor = index;
+            if (index >= 0) {
+                CardButton row = rows.get(index);
+                row.setKeyboardCursor(true);
+                row.scrollRectToVisible(new Rectangle(row.getSize()));
             }
         }
 
@@ -219,11 +330,8 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
      * A flat row with a colored icon badge, used for every item in the tool
      * window. Three states read differently: hover is the theme's neutral
      * hover fill, while the selected model gets a light tint of its own color
-     * plus a bar on the left, and keeps both while hovered.
-     *
-     * <p>Rows are reachable from the keyboard (Tab, ↑/↓, Enter or Space), but a
-     * mouse click doesn't take focus, so clicking a model keeps typing in the
-     * terminal uninterrupted.
+     * plus a bar on the left, and keeps both while hovered. The keyboard
+     * cursor is drawn as a focus-colored outline.
      */
     private static final class CardButton extends JButton {
         /** Unscaled heights; ACTION rows are outlined so they read as buttons. */
@@ -244,7 +352,11 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
         private final String glyph;
         private final Color accent;
         private final String shortcut;
+        // Rows are recreated on every theme or zoom change, so these stay current.
+        private final Font glyphFont = JBFont.small().asBold();
+        private final Font shortcutFont = JBFont.small();
         private boolean selected;
+        private boolean keyboardCursor;
 
         private CardButton(Kind kind, String title, String tooltip, String glyph, Color accent, Runnable action,
                            String shortcut) {
@@ -255,39 +367,12 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             this.accent = accent;
             this.shortcut = shortcut;
             setToolTipText(tooltip);
-            setFocusable(true);
-            setRequestFocusEnabled(false);
+            setFocusable(false);
             setRolloverEnabled(true);
             setContentAreaFilled(false);
             setBorderPainted(false);
             setOpaque(false);
             addActionListener(ignored -> action.run());
-            installKeyboardNavigation();
-        }
-
-        /** Enter activates (Space already does); ↑/↓ move between rows. Only while this row has focus. */
-        private void installKeyboardNavigation() {
-            bind(KeyEvent.VK_ENTER, "codexActivate", this::doClick);
-            bind(KeyEvent.VK_UP, "codexPrevious",
-                () -> KeyboardFocusManager.getCurrentKeyboardFocusManager().focusPreviousComponent(this));
-            bind(KeyEvent.VK_DOWN, "codexNext",
-                () -> KeyboardFocusManager.getCurrentKeyboardFocusManager().focusNextComponent(this));
-            addFocusListener(new FocusAdapter() {
-                @Override
-                public void focusGained(FocusEvent event) {
-                    scrollRectToVisible(new Rectangle(0, 0, getWidth(), getHeight()));
-                }
-            });
-        }
-
-        private void bind(int keyCode, String name, Runnable runnable) {
-            getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(keyCode, 0), name);
-            getActionMap().put(name, new AbstractAction() {
-                @Override
-                public void actionPerformed(ActionEvent event) {
-                    runnable.run();
-                }
-            });
         }
 
         private void setHighlighted(boolean selected) {
@@ -295,7 +380,11 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             repaint();
         }
 
-        // Sizes are computed on every call, so they follow IDE zoom changes.
+        private void setKeyboardCursor(boolean keyboardCursor) {
+            this.keyboardCursor = keyboardCursor;
+            repaint();
+        }
+
         @Override
         public Dimension getPreferredSize() {
             return new Dimension(0, JBUI.scale(kind.height));
@@ -315,12 +404,22 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
             ButtonModel model = getModel();
             if (selected) {
                 float weight = model.isPressed() ? 0.30f : model.isRollover() ? 0.24f : 0.16f;
-                return mix(UIUtil.getPanelBackground(), accent, weight);
+                return mix(ground(), accent, weight);
             }
             if (model.isPressed()) {
                 return JBUI.CurrentTheme.ActionButton.pressedBackground();
             }
             return model.isRollover() ? JBUI.CurrentTheme.ActionButton.hoverBackground() : null;
+        }
+
+        /** The color actually painted behind this transparent row: its nearest opaque ancestor's. */
+        private Color ground() {
+            for (Component parent = getParent(); parent != null; parent = parent.getParent()) {
+                if (parent.isOpaque() && parent.getBackground() != null) {
+                    return parent.getBackground();
+                }
+            }
+            return UIUtil.getPanelBackground();
         }
 
         @Override
@@ -338,8 +437,8 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
                     g.setColor(background);
                     g.fillRoundRect(0, 0, width, height, arc, arc);
                 }
-                if (kind.outlined || isFocusOwner()) {
-                    g.setColor(isFocusOwner() ? JBUI.CurrentTheme.Focus.focusColor() : JBColor.border());
+                if (kind.outlined || keyboardCursor) {
+                    g.setColor(keyboardCursor ? JBUI.CurrentTheme.Focus.focusColor() : JBColor.border());
                     g.drawRoundRect(0, 0, width - 1, height - 1, arc, arc);
                 }
                 if (selected) {
@@ -352,10 +451,10 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
                 int padding = JBUI.scale(8);
                 int badge = JBUI.scale(18);
                 int badgeY = (height - badge) / 2;
-                g.setColor(isEnabled() ? accent : mix(accent, UIUtil.getPanelBackground(), 0.5f));
+                g.setColor(accent);
                 g.fillRoundRect(padding, badgeY, badge, badge, JBUI.scale(6), JBUI.scale(6));
                 g.setColor(Color.WHITE);
-                g.setFont(JBFont.small().asBold());
+                g.setFont(glyphFont);
                 FontMetrics glyphMetrics = g.getFontMetrics();
                 g.drawString(glyph, padding + (badge - glyphMetrics.stringWidth(glyph)) / 2,
                     badgeY + (badge - glyphMetrics.getHeight()) / 2 + glyphMetrics.getAscent());
@@ -365,14 +464,14 @@ public final class CodexModelToolWindowFactory implements ToolWindowFactory {
                 if (shortcut != null) {
                     String keys = "⌃" + shortcut;
                     g.setColor(JBUI.CurrentTheme.ContextHelp.FOREGROUND);
-                    g.setFont(JBFont.small());
+                    g.setFont(shortcutFont);
                     FontMetrics keyMetrics = g.getFontMetrics();
                     right -= keyMetrics.stringWidth(keys);
                     g.drawString(keys, right, (height - keyMetrics.getHeight()) / 2 + keyMetrics.getAscent());
                     right -= JBUI.scale(8);
                 }
 
-                g.setColor(isEnabled() ? UIUtil.getLabelForeground() : UIUtil.getLabelDisabledForeground());
+                g.setColor(UIUtil.getLabelForeground());
                 g.setFont(getFont());
                 FontMetrics textMetrics = g.getFontMetrics();
                 g.drawString(fit(title, textMetrics, right - textX), textX,
