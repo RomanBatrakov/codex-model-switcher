@@ -55,9 +55,7 @@ final class CodexSettingsDialog extends DialogWrapper {
         super(project);
         settings = CodexModelSwitcherSettings.getInstance();
         serverUrlField = new JBTextField(settings.serverUrl());
-        Set<String> modelSuggestions = new LinkedHashSet<>(
-                List.of("gpt-6.1-terra", "gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna",
-                        "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.6-luna"));
+        Set<String> modelSuggestions = new LinkedHashSet<>(ModelPreset.knownModels());
         for (ModelPreset.PresetId presetId : ModelPreset.PresetId.values()) {
             modelSuggestions.add(settings.model(presetId));
         }
@@ -294,28 +292,15 @@ final class CodexSettingsDialog extends DialogWrapper {
         return null;
     }
 
+    /** Restores the four presets' defaults; the app-server address in CONNECTION is left alone. */
     private void resetFields() {
         CodexModelSwitcherSettings.Data defaults = new CodexModelSwitcherSettings.Data();
-        serverUrlField.setText(defaults.serverUrl);
         for (PresetFields fields : presetFields) {
-            fields.modelField.getEditor().setItem(defaultsFor(fields.presetId, true));
+            fields.modelField.getEditor().setItem(defaults.model(fields.presetId));
             fields.refreshEffortOptions();
-            fields.effortField.setSelectedItem(defaultsFor(fields.presetId, false));
-            fields.shortcutField.setText(defaultsShortcut(fields.presetId));
+            fields.effortField.setSelectedItem(defaults.effort(fields.presetId));
+            fields.shortcutField.setText(defaults.shortcut(fields.presetId));
         }
-    }
-
-    private static String defaultsFor(ModelPreset.PresetId presetId, boolean model) {
-        return switch (presetId) {
-            case TERRA_MEDIUM -> model ? "gpt-5.6-terra" : "medium";
-            case TERRA_XHIGH -> model ? "gpt-5.6-terra" : "xhigh";
-            case SOL_XHIGH -> model ? "gpt-5.6-sol" : "xhigh";
-            case LUNA_MAX -> model ? "gpt-5.6-luna" : "max";
-        };
-    }
-
-    private static String defaultsShortcut(ModelPreset.PresetId presetId) {
-        return String.valueOf(presetId.ordinal() + 1);
     }
 
     /** The editable UI fields for one preset row: model combo, effort combo, and shortcut digit. */

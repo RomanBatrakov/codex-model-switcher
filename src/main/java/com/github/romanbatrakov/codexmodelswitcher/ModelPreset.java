@@ -1,5 +1,7 @@
 package com.github.romanbatrakov.codexmodelswitcher;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -23,15 +25,26 @@ record ModelPreset(PresetId id, String label, String model, String effort) {
      * #EFFORT_OPTIONS} list, since the plugin has no way to know what it
      * actually supports.
      */
-    private static final Map<String, List<String>> MODEL_EFFORT_OPTIONS = Map.of(
-            "gpt-6.1-terra", List.of("low", "medium", "high", "xhigh", "max", "ultra"),
-            "gpt-6.1-sol", List.of("low", "medium", "high", "xhigh", "max", "ultra"),
-            "gpt-6-astra", List.of("low", "medium", "high", "xhigh", "max", "ultra"),
-            "gpt-6-sol", List.of("low", "medium", "high", "xhigh", "max", "ultra"),
-            "gpt-6-luna", List.of("low", "medium", "high", "xhigh", "max"),
-            "gpt-5.6-terra", List.of("low", "medium", "high", "xhigh", "max", "ultra"),
-            "gpt-5.6-sol", List.of("low", "medium", "high", "xhigh", "max", "ultra"),
-            "gpt-5.6-luna", List.of("low", "medium", "high", "xhigh", "max"));
+    private static final Map<String, List<String>> MODEL_EFFORT_OPTIONS;
+
+    // Insertion order matters: it is also the order of the model suggestions in Settings.
+    static {
+        Map<String, List<String>> options = new LinkedHashMap<>();
+        options.put("gpt-6.1-terra", List.of("low", "medium", "high", "xhigh", "max", "ultra"));
+        options.put("gpt-6.1-sol", List.of("low", "medium", "high", "xhigh", "max", "ultra"));
+        options.put("gpt-6-astra", List.of("low", "medium", "high", "xhigh", "max", "ultra"));
+        options.put("gpt-6-sol", List.of("low", "medium", "high", "xhigh", "max", "ultra"));
+        options.put("gpt-6-luna", List.of("low", "medium", "high", "xhigh", "max"));
+        options.put("gpt-5.6-terra", List.of("low", "medium", "high", "xhigh", "max", "ultra"));
+        options.put("gpt-5.6-sol", List.of("low", "medium", "high", "xhigh", "max", "ultra"));
+        options.put("gpt-5.6-luna", List.of("low", "medium", "high", "xhigh", "max"));
+        MODEL_EFFORT_OPTIONS = Collections.unmodifiableMap(options);
+    }
+
+    /** The models the plugin knows, newest first: the suggestions offered in Settings. */
+    static List<String> knownModels() {
+        return List.copyOf(MODEL_EFFORT_OPTIONS.keySet());
+    }
 
     enum PresetId {
         TERRA_MEDIUM("Terra / Medium"),

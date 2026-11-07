@@ -51,32 +51,17 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
 
     /** The configured model name for the given preset slot. */
     public String model(ModelPreset.PresetId presetId) {
-        return switch (presetId) {
-            case TERRA_MEDIUM -> data.terraMediumModel;
-            case TERRA_XHIGH -> data.terraXHighModel;
-            case SOL_XHIGH -> data.solXHighModel;
-            case LUNA_MAX -> data.lunaMaxModel;
-        };
+        return data.model(presetId);
     }
 
     /** The configured reasoning effort for the given preset slot. */
     public String effort(ModelPreset.PresetId presetId) {
-        return switch (presetId) {
-            case TERRA_MEDIUM -> data.terraMediumEffort;
-            case TERRA_XHIGH -> data.terraXHighEffort;
-            case SOL_XHIGH -> data.solXHighEffort;
-            case LUNA_MAX -> data.lunaMaxEffort;
-        };
+        return data.effort(presetId);
     }
 
     /** The configured keyboard-shortcut digit for the given preset slot. */
     public String shortcut(ModelPreset.PresetId presetId) {
-        return switch (presetId) {
-            case TERRA_MEDIUM -> data.terraMediumShortcut;
-            case TERRA_XHIGH -> data.terraXHighShortcut;
-            case SOL_XHIGH -> data.solXHighShortcut;
-            case LUNA_MAX -> data.lunaMaxShortcut;
-        };
+        return data.shortcut(presetId);
     }
 
     /**
@@ -224,5 +209,36 @@ public final class CodexModelSwitcherSettings implements PersistentStateComponen
         public String lastPresetId = ModelPreset.PresetId.TERRA_MEDIUM.name();
         public boolean activeChatOnly = false;
         public List<LaunchProfile> launchProfiles = new ArrayList<>();
+
+        // Lookups by preset slot. They take a parameter, so the XML
+        // serializer doesn't treat them as properties: the stored format is
+        // still just the public fields above. A fresh Data holds the defaults.
+
+        String model(ModelPreset.PresetId presetId) {
+            return switch (presetId) {
+                case TERRA_MEDIUM -> terraMediumModel;
+                case TERRA_XHIGH -> terraXHighModel;
+                case SOL_XHIGH -> solXHighModel;
+                case LUNA_MAX -> lunaMaxModel;
+            };
+        }
+
+        String effort(ModelPreset.PresetId presetId) {
+            return switch (presetId) {
+                case TERRA_MEDIUM -> terraMediumEffort;
+                case TERRA_XHIGH -> terraXHighEffort;
+                case SOL_XHIGH -> solXHighEffort;
+                case LUNA_MAX -> lunaMaxEffort;
+            };
+        }
+
+        String shortcut(ModelPreset.PresetId presetId) {
+            return switch (presetId) {
+                case TERRA_MEDIUM -> terraMediumShortcut;
+                case TERRA_XHIGH -> terraXHighShortcut;
+                case SOL_XHIGH -> solXHighShortcut;
+                case LUNA_MAX -> lunaMaxShortcut;
+            };
+        }
     }
 }
