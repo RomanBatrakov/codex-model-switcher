@@ -28,6 +28,12 @@
     button in the tool window; clicking it runs <code>codex &lt;your arguments&gt;</code> in a new terminal, the
     same way you'd type it by hand.</p>
 
+    <h3>Token usage</h3>
+    <p>A status bar widget shows Codex token consumption: tokens per minute right now, the number of active
+    agents, and the 24-hour and 7-day averages. Click it for this project vs. all agents. Rates are per agent
+    (two agents read the same as one) and exclude cached input, which Codex re-sends on every step. Data is read
+    only from Codex's local session files, without any network access.</p>
+
     <h3>Requirements</h3>
     <p>macOS only, with the Codex CLI installed at <code>/opt/homebrew/bin/codex</code> or
     <code>/usr/local/bin/codex</code>. The plugin only ever launches that local, verified executable and never
@@ -39,9 +45,9 @@
   <change-notes><![CDATA[
     <p><b>2.0.0</b></p>
     <ul>
-      <li>New status bar widget with live Codex token usage: tokens per minute per agent, the number
-        of active agents, and the 5-hour and weekly limits. Click it for this project's usage vs. all
-        agents and 24-hour, 7-day and 30-day averages. Read only from local Codex session files</li>
+      <li>New status bar widget with Codex token usage: tokens per minute per agent right now, the
+        number of active agents, and the 24-hour and 7-day averages. Click it for this project vs. all
+        agents, including 30-day figures. Read only from local Codex session files</li>
     </ul>
 
     <p><b>1.9.0</b></p>

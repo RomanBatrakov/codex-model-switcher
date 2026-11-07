@@ -24,6 +24,8 @@ leaving the IDE or typing shell commands.
 - **Launch profiles** — for anything outside the model presets (a named Codex CLI profile, a non-default flag
   combination, whatever `~/.codex/config.toml` knows about), add a launch profile in Settings: give it a name and
   the extra arguments to pass, e.g. `--profile my-profile`. It shows up as its own button in the tool window.
+- **Token usage in the status bar** — live Codex token consumption without leaving the IDE (see
+  [Token usage](#token-usage) below).
 - **Per-project isolation** — every open project gets its own Codex app-server process and port, so a "New chat"
   in one project window never ends up rooted in another project's directory.
 - **Local and verified only** — the plugin only ever launches the Codex executable found at
@@ -62,6 +64,31 @@ The built plugin ZIP lands in `build/distributions/`. Install it via
    resume a saved one.
 4. Add **launch profiles** in Settings for anything a preset doesn't cover — they show up as their own buttons in
    the tool window.
+
+## Token usage
+
+The status bar shows Codex token consumption across all agents:
+
+```
+⛽ 7.0k tok/min · 🤖 2 · 24h 8.4k · 7d 5.2k
+```
+
+That is the rate over the last 5 minutes, the number of agents active in that window, and the average rate over
+the last 24 hours and 7 days. Click it for a breakdown of the current project vs. all agents, with 24-hour, 7-day
+and 30-day averages and totals. Hide it like any other widget: right-click the status bar and uncheck
+**Codex Usage**.
+
+How the numbers are counted:
+
+- **Per agent, not summed.** Time is split into 5-minute intervals, and tokens are divided by the minutes each
+  agent was actually working. Two busy agents show the same rate as one, and time with no agent running doesn't
+  pull the averages down.
+- **Without cached input.** Codex re-sends the whole conversation context on every step, and that cached input is
+  typically ~98% of the raw token count. The main numbers leave it out; the details also show the full count
+  ("with cache").
+- **Local files only.** Data comes from Codex's own session transcripts in `~/.codex/sessions` (or
+  `$CODEX_HOME/sessions`), refreshed every 30 seconds. There is no network access, and only new lines are read after
+  the first scan. The transcript format is internal to Codex and may change in future Codex releases.
 
 ## Security notes
 
