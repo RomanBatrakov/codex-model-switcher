@@ -83,13 +83,40 @@ final class CodexUsageStats {
 
     /** Whether a session's working directory is the project directory or somewhere inside it. */
     static boolean belongsTo(String cwd, String projectPath) {
-        if (cwd == null || projectPath == null) {
-            return false;
+        return projectFilter(projectPath).test(cwd);
+    }
+
+    /**
+     * A {@link #belongsTo} check for one project, meant to be applied to many
+     * samples: the project path is normalized once, and the answer is cached
+     * per distinct working directory -- there are only a handful of those,
+     * while there can be tens of thousands of samples.
+     */
+    static Predicate<String> projectFilter(String projectPath) {
+        Path project = normalize(projectPath);
+        if (project == null) {
+            return _ -> false;
+        }
+        Map<String, Boolean> cache = new HashMap<>();
+        return cwd -> {
+            if (cwd == null) {
+                return false;
+            }
+            return cache.computeIfAbsent(cwd, key -> {
+                Path path = normalize(key);
+                return path != null && path.startsWith(project);
+            });
+        };
+    }
+
+    private static Path normalize(String path) {
+        if (path == null) {
+            return null;
         }
         try {
-            return Path.of(cwd).normalize().startsWith(Path.of(projectPath).normalize());
+            return Path.of(path).normalize();
         } catch (InvalidPathException ignored) {
-            return false;
+            return null;
         }
     }
 

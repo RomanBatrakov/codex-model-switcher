@@ -72,6 +72,12 @@ class CodexUsageStatsTest {
         assertTrue(CodexUsageStats.belongsTo("/work/core/module", "/work/core"));
         assertFalse(CodexUsageStats.belongsTo("/work/core-old", "/work/core"));
         assertFalse(CodexUsageStats.belongsTo(null, "/work/core"));
+        assertFalse(CodexUsageStats.belongsTo("/work/core", null));
+
+        java.util.function.Predicate<String> filter = CodexUsageStats.projectFilter("/work/core/");
+        assertTrue(filter.test("/work/core/module"));
+        assertTrue(filter.test("/work/core/module"));
+        assertFalse(filter.test("/work/other"));
     }
 
     @Test

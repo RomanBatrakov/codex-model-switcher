@@ -114,8 +114,7 @@ final class CodexUsageWidget implements StatusBarWidget, StatusBarWidget.TextPre
     private String detailsHtml() {
         List<CodexUsageStats.Sample> samples = CodexUsageTracker.getInstance().snapshot().samples();
         long now = System.currentTimeMillis();
-        String projectPath = project.getBasePath();
-        Predicate<String> thisProject = cwd -> CodexUsageStats.belongsTo(cwd, projectPath);
+        Predicate<String> thisProject = CodexUsageStats.projectFilter(project.getBasePath());
         Predicate<String> everything = _ -> true;
 
         StringBuilder html = new StringBuilder("<html><table cellpadding='2'>")
