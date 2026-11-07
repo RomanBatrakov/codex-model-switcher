@@ -81,6 +81,17 @@ class CodexUsageStatsTest {
     }
 
     @Test
+    void formatsCachedShare() {
+        assertEquals("97.6%", CodexUsageStats.formatCachedShare(1_000, 24));
+        assertEquals("0.0%", CodexUsageStats.formatCachedShare(1_000, 1_000));
+        assertEquals("100.0%", CodexUsageStats.formatCachedShare(1_000, 0));
+        assertEquals("—", CodexUsageStats.formatCachedShare(0, 0));
+        // Inconsistent input is clamped instead of going negative or above 100%.
+        assertEquals("0.0%", CodexUsageStats.formatCachedShare(1_000, 2_000));
+        assertEquals("100.0%", CodexUsageStats.formatCachedShare(1_000, -5));
+    }
+
+    @Test
     void formatsNumbers() {
         assertEquals("850", CodexUsageStats.formatTokens(850));
         assertEquals("4.2k", CodexUsageStats.formatTokens(4_200));

@@ -120,6 +120,19 @@ final class CodexUsageStats {
         }
     }
 
+    /**
+     * Share of cached input in all tokens, e.g. {@code 97.6%}: totalTokens
+     * already includes the cached input, and nonCachedTokens is total minus
+     * cached. {@code —} when there are no tokens; always within 0–100%.
+     */
+    static String formatCachedShare(long totalTokens, long nonCachedTokens) {
+        if (totalTokens <= 0) {
+            return "—";
+        }
+        long cached = Math.min(totalTokens, Math.max(0, totalTokens - nonCachedTokens));
+        return String.format(Locale.ROOT, "%.1f%%", cached * 100.0 / totalTokens);
+    }
+
     /** Compact token count: 850, 4.2k, 1.3M. */
     static String formatTokens(double value) {
         if (value < 1_000) {
