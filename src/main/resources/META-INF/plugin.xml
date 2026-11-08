@@ -10,13 +10,14 @@
 
   <description><![CDATA[
     <p>A tool window for <a href="https://github.com/openai/codex">Codex CLI</a>: switch the model and reasoning
-    effort of every active chat in one click, jump straight to a saved chat, and launch your own Codex profiles
+    effort of your Codex chats in one click, jump straight to a saved chat, and launch your own Codex profiles
     &mdash; without leaving the IDE or typing shell commands. A status bar widget shows how many tokens your Codex
     agents use.</p>
 
     <h3>Model presets</h3>
-    <p>Four configurable model/reasoning slots, each with its own keyboard shortcut. Switching a preset updates
-    every currently open Codex chat at once through the local Codex app server.</p>
+    <p>Four configurable model/reasoning slots, each with its own &#8963;1&ndash;&#8963;9 shortcut. Switching a
+    preset updates every open Codex chat at once through the local Codex app server, or only the active chat tab
+    if you turn that on in Settings.</p>
 
     <h3>Chats</h3>
     <p>Open a new chat with the current preset, or pick any saved chat from a searchable list and resume it in an
@@ -31,14 +32,16 @@
 
     <h3>Token usage</h3>
     <p>A status bar widget shows Codex token consumption: tokens per minute right now, the number of active
-    agents, and the 24-hour and 7-day averages. Click it for this project vs. all agents. Rates are per agent
+    agents, and the 24-hour and 7-day averages. Click it for details for this project or all agents: tokens used
+    over 24 hours, 7 and 30 days (uncached, total and the cached share) and the average speed for each period.
+    Rates are per agent
     (two agents read the same as one) and exclude cached input, which Codex re-sends on every step. Data is read
     only from Codex's local session files, without any network access.</p>
 
     <h3>Requirements</h3>
-    <p>macOS only, with the Codex CLI installed at <code>/opt/homebrew/bin/codex</code> or
-    <code>/usr/local/bin/codex</code>. The plugin only ever launches that local, verified executable and never
-    sends keystrokes to the editor.</p>
+    <p>IntelliJ IDEA 2026.2 or newer on macOS, with the Codex CLI installed at
+    <code>/opt/homebrew/bin/codex</code> or <code>/usr/local/bin/codex</code>. The plugin only ever launches that
+    local, verified executable and never sends keystrokes to the editor.</p>
 
     <p><i>Independent tool built to work with Codex CLI. Not affiliated with or endorsed by OpenAI.</i></p>
   ]]></description>

@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 An IntelliJ IDEA tool window for [Codex CLI](https://github.com/openai/codex): switch the model and reasoning effort
-of every active chat in one click, jump straight to a saved chat, and launch your own Codex profiles — without
+of your Codex chats in one click, jump straight to a saved chat, and launch your own Codex profiles — without
 leaving the IDE or typing shell commands. A status bar widget shows how many tokens your Codex agents use.
 
 <p align="center">
@@ -17,8 +17,9 @@ leaving the IDE or typing shell commands. A status bar widget shows how many tok
 
 ## Features
 
-- **Model presets** — four configurable model/reasoning slots, each with its own keyboard shortcut. Switching a
-  preset updates every currently open Codex chat at once through the local Codex app server.
+- **Model presets** — four configurable model/reasoning slots, each with its own `⌃1`–`⌃9` shortcut. Switching a
+  preset updates every open Codex chat at once through the local Codex app server, or only the active chat tab if
+  you turn that on in Settings.
 - **Chats** — open a new chat with the current preset, or pick any saved chat from a searchable list and resume it
   in an integrated terminal.
 - **Launch profiles** — for anything outside the model presets (a named Codex CLI profile, a non-default flag
@@ -59,7 +60,7 @@ The built plugin ZIP lands in `build/distributions/`. Install it via
 
 1. Open the **Model Switcher** tool window (right sidebar).
 2. Click a **MODELS** card, or use its keyboard shortcut, to apply that model/reasoning preset to every open Codex
-   chat.
+   chat (or only the active one, if **Apply presets only to the active chat** is on in Settings).
 3. Click **New chat** to start a chat with the current preset in the project's own directory, or **Choose chat** to
    resume a saved one.
 4. Add **launch profiles** in Settings for anything a preset doesn't cover — they show up as their own buttons in
