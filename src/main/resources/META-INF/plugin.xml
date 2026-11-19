@@ -1,5 +1,5 @@
 <idea-plugin>
-  <version>2.0.0</version>
+  <version>2.1.0</version>
   <id>com.github.romanbatrakov.codexmodelswitcher</id>
   <name>Model Switcher for Codex CLI</name>
   <vendor email="batrakov.r.v@gmail.com" url="https://github.com/RomanBatrakov">Roman</vendor>
@@ -44,6 +44,13 @@
   ]]></description>
 
   <change-notes><![CDATA[
+    <p><b>2.1.0</b></p>
+    <ul>
+      <li>Added gpt-6.2-sol and gpt-6.2-astra as model suggestions in Settings, both with reasoning up to ultra</li>
+      <li>Updated the plugin description for 2.0: the active-chat-only option, the usage details and the
+        IntelliJ IDEA 2026.2 minimum</li>
+    </ul>
+
     <p><b>2.0.0</b></p>
     <ul>
       <li>New status bar widget with Codex token usage: tokens per minute per agent right now, the
