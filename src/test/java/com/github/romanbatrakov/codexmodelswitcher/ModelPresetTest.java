@@ -38,6 +38,8 @@ class ModelPresetTest {
     void testValidateEffortRestrictedPerKnownModel() {
         // Astra/Sol (both generations) and Terra support the full range, including "ultra".
         assertNull(ModelPreset.validateEffort("gpt-6-astra", "ultra"));
+        assertNull(ModelPreset.validateEffort("gpt-6.2-sol", "ultra"));
+        assertNull(ModelPreset.validateEffort("gpt-6.2-astra", "ultra"));
         assertNull(ModelPreset.validateEffort("gpt-6.1-terra", "ultra"));
         assertNull(ModelPreset.validateEffort("gpt-6.1-sol", "ultra"));
         assertNull(ModelPreset.validateEffort("gpt-6-sol", "ultra"));
@@ -79,5 +81,14 @@ class ModelPresetTest {
                 () -> ModelPreset.requireEffort("gpt-5.6-sol", "invalid_effort"));
         assertThrows(IllegalArgumentException.class,
                 () -> ModelPreset.requireEffort("gpt-6-luna", "ultra"));
+    }
+
+    @Test
+    void testKnownModelsListNewestFirst() {
+        // This order is the order of the model suggestions in Settings.
+        assertEquals(List.of("gpt-6.2-sol", "gpt-6.2-astra", "gpt-6.1-terra"),
+                ModelPreset.knownModels().subList(0, 3));
+        assertEquals(List.of("low", "medium", "high", "xhigh", "max", "ultra"),
+                ModelPreset.effortOptionsFor("gpt-6.2-astra"));
     }
 }

@@ -30,6 +30,8 @@ record ModelPreset(PresetId id, String label, String model, String effort) {
     // Insertion order matters: it is also the order of the model suggestions in Settings.
     static {
         Map<String, List<String>> options = new LinkedHashMap<>();
+        options.put("gpt-6.2-sol", List.of("low", "medium", "high", "xhigh", "max", "ultra"));
+        options.put("gpt-6.2-astra", List.of("low", "medium", "high", "xhigh", "max", "ultra"));
         options.put("gpt-6.1-terra", List.of("low", "medium", "high", "xhigh", "max", "ultra"));
         options.put("gpt-6.1-sol", List.of("low", "medium", "high", "xhigh", "max", "ultra"));
         options.put("gpt-6-astra", List.of("low", "medium", "high", "xhigh", "max", "ultra"));
